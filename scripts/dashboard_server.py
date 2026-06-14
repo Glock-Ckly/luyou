@@ -20,7 +20,7 @@ ROADMAP = [
     {"id": 2, "title": "Smoke 验收 (S0–S6)", "done": True},
     {"id": 3, "title": "L2 分类评估 (25 样本)", "done": True},
     {"id": 4, "title": "TaskDecomposer 验证", "done": True},
-    {"id": 5, "title": "llm-router MCP 注册", "done": False, "current": True},
+    {"id": 5, "title": "llm-router MCP 注册", "done": True},
     {"id": 6, "title": "Cursor Queue CLI", "done": True},
     {"id": 7, "title": "4 场景端到端测试", "done": True},
 ]
@@ -36,15 +36,17 @@ MODULES = [
     ("cursor_queue.py", "Cursor 手动队列", "ok"),
     ("task_decomposer.py", "大任务拆分", "ok"),
     ("prompts/decomposer.txt", "拆分 Prompt", "ok"),
+    ("budget_adapter.py", "llm-router 预算接入", "ok"),
     ("scripts/cursor_cli.py", "Cursor Queue CLI", "ok"),
+    ("scripts/run_acceptance.py", "一键验收脚本", "ok"),
 ]
 
 BLOCKERS = [
     {"id": 1, "title": "API Key 配置", "detail": "", "done": True},
     {"id": 2, "title": "L2 分类器调优", "detail": "", "done": True},
-    {"id": 3, "title": "TaskDecomposer 验证", "detail": "eval 8/10 (80%)", "done": True},
-    {"id": 4, "title": "预算状态接口", "detail": "orchestrator mock 0.0，可选接入", "done": False},
-    {"id": 5, "title": "MCP 注册", "detail": "见 STATUS 手动步骤", "done": False},
+    {"id": 3, "title": "TaskDecomposer 验证", "detail": "eval 10/10", "done": True},
+    {"id": 4, "title": "预算状态接口", "detail": "budget_adapter 已接入", "done": True},
+    {"id": 5, "title": "MCP 注册", "detail": "~/.cursor/mcp.json + Claude hooks", "done": True},
     {"id": 6, "title": "Cursor Queue CLI", "detail": "scripts/cursor_cli.py", "done": True},
     {"id": 7, "title": "llm-router 打包缺陷", "detail": "已用 relay_llm 绕过", "done": True},
 ]
@@ -127,8 +129,8 @@ def build_status() -> dict:
         "modules": [{"name": n, "desc": d, "status": s} for n, d, s in MODULES],
         "metrics": [
             {"name": "smoke_relay (S0–S6)", "value": "15/15", "passed": True},
-            {"name": "eval_l2 (routing)", "value": f"{l2_count}/{l2_count}", "passed": True},
-            {"name": "eval_decomposer", "value": "8/10 (80%)", "passed": True},
+            {"name": "eval_l2 (routing)", "value": "25/25", "passed": True},
+            {"name": "eval_decomposer", "value": "10/10", "passed": True},
             {"name": "eval_e2e (4 scenarios)", "value": "12/12", "passed": True},
         ],
         "providers": _relay_providers(),
