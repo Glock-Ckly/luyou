@@ -34,6 +34,7 @@ from response_validator import validate, ValidationStatus
 from cursor_queue import push as cursor_push
 from task_decomposer import decompose, Subtask, DecomposerResult
 from relay_config import apply_relay_env, resolve_model
+from budget_adapter import get_budget_ratio
 from l2_classifier import classify_l2
 
 # 在任何 llm_router 导入之前注入中转站环境变量
@@ -271,14 +272,7 @@ class MultiModelOrchestrator:
 
     async def _get_budget_ratio(self) -> float:
         """获取预算消耗比例 (0.0-1.0)"""
-        try:
-            from llm_router.budget import get_budget_state
-            state = get_budget_state()
-            if state and state.limit > 0:
-                return min(1.0, state.spent / state.limit)
-        except Exception:
-            pass
-        return 0.0
+        return await get_budget_ratio()
 
     def _aggregate(
         self,
