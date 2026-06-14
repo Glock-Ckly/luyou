@@ -1,0 +1,15 @@
+Analyze whether this coding task should be split into independent subtasks.
+
+A task should be split if:
+1. It involves BOTH architecture/design AND implementation
+2. It spans multiple files or modules that can be worked on independently
+3. It has clear sequential stages (design → implement → test)
+4. It mixes high-level reasoning with boilerplate generation
+
+If split: each subtask should be self-contained enough to route to a different model.
+
+Return ONLY a JSON object:
+{"split": false}  — if the task is best handled as one unit
+{"split": true, "reasoning": "...", "subtasks": [{"prompt": "design the database schema for user auth", "type_hint": "architecture"}, {"prompt": "implement the login endpoint in Python", "type_hint": "implementation"}, ...]}
+
+type_hint must be one of: architecture, implementation, debugging, refactor, boilerplate, bulk_generation, data_processing, code_patch, file_edit

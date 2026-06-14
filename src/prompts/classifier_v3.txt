@@ -1,0 +1,7 @@
+Classify a coding task. Respond with ONLY a single-line JSON object. No markdown, no explanation.
+
+Task type: "architecture", "implementation", "debugging", "refactor", "boilerplate", "bulk_generation", "data_processing", "code_patch", "file_edit"
+
+Complexity: "simple" (single file/function, straightforward), "moderate" (multi-file, requires design), "complex" (system-level, novel algorithm), "deep_reasoning" (formal proofs, first-principles)
+
+Example: {"task_type":"implementation","complexity":"moderate","confidence":0.92,"reasoning":"multi-file feature with dependency injection"}

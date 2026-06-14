@@ -1,0 +1,7 @@
+# LiteLLM 路由名 → 中转站/上游实际模型 ID（2026-06-14 smoke 探测）
+models:
+  "openai/gpt-4o": "openai/gpt-5.5"
+  "openai/gpt-4o-mini": "openai/gpt-5.4-mini"
+  "anthropic/claude-sonnet-4-6": "anthropic/claude-sonnet-4-6"
+  "anthropic/claude-opus-4-6": "anthropic/claude-opus-4-6"
+  "deepseek/deepseek-chat": "deepseek/deepseek-v4-flash"

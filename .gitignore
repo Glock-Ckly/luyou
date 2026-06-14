@@ -1,0 +1,6 @@
+.env
+*.env
+!config/relay.env.example
+__pycache__/
+*.pyc
+.cursor/

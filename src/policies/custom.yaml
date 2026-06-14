@@ -1,0 +1,117 @@
+name: custom
+description: |
+  Custom routing policy for personal multi-LLM coding workflow.
+  Routes by task_type → model (1:1 exact mapping) instead of complexity → profile chain.
+  Implements task-aware fallback — DeepSeek never does architecture.
+
+confidence_threshold: 4
+skip_acknowledgements: true
+route_coordination: false
+prefer_ollama: false
+
+# ── Task-type → Model routing (CANONICAL) ──────────────────
+workhorses:
+  - anthropic/claude-sonnet-4-6
+  - openai/gpt-4o
+  - deepseek/deepseek-chat
+
+specialists:
+  architecture:
+    - anthropic/claude-sonnet-4-6
+    - openai/gpt-4o
+  deep_reasoning:
+    - anthropic/claude-opus-4-6
+    - anthropic/claude-sonnet-4-6
+    - openai/gpt-4o
+
+# ── Fallback chains ──────────────────────────────────────
+fallback_chain_complex:
+  - anthropic/claude-sonnet-4-6
+  - openai/gpt-4o
+
+fallback_chain_simple:
+  - deepseek/deepseek-chat
+  - openai/gpt-4o-mini
+
+# ── Per-task-type chains ─────────────────────────────────
+chains:
+  budget:
+    boilerplate:
+      - deepseek/deepseek-chat
+    bulk_generation:
+      - deepseek/deepseek-chat
+    data_processing:
+      - deepseek/deepseek-chat
+    implementation:
+      - openai/gpt-4o-mini
+      - deepseek/deepseek-chat
+    debugging:
+      - openai/gpt-4o-mini
+      - deepseek/deepseek-chat
+    refactor:
+      - openai/gpt-4o-mini
+      - deepseek/deepseek-chat
+    code_patch:
+      - cursor_queue
+    file_edit:
+      - cursor_queue
+
+  balanced:
+    architecture:
+      - anthropic/claude-sonnet-4-6
+      - openai/gpt-4o
+    system_design:
+      - anthropic/claude-sonnet-4-6
+      - openai/gpt-4o
+    implementation:
+      - openai/gpt-4o
+      - anthropic/claude-sonnet-4-6
+      - deepseek/deepseek-chat
+    debugging:
+      - openai/gpt-4o
+      - anthropic/claude-sonnet-4-6
+      - deepseek/deepseek-chat
+    refactor:
+      - openai/gpt-4o
+      - anthropic/claude-sonnet-4-6
+      - deepseek/deepseek-chat
+    boilerplate:
+      - deepseek/deepseek-chat
+      - openai/gpt-4o-mini
+    bulk_generation:
+      - deepseek/deepseek-chat
+      - openai/gpt-4o-mini
+    data_processing:
+      - deepseek/deepseek-chat
+      - openai/gpt-4o-mini
+    code_patch:
+      - cursor_queue
+    file_edit:
+      - cursor_queue
+    uncertain:
+      - openai/gpt-4o
+      - anthropic/claude-sonnet-4-6
+      - deepseek/deepseek-chat
+
+  premium:
+    architecture:
+      - anthropic/claude-opus-4-6
+      - anthropic/claude-sonnet-4-6
+      - openai/gpt-4o
+    system_design:
+      - anthropic/claude-opus-4-6
+      - anthropic/claude-sonnet-4-6
+    deep_reasoning:
+      - anthropic/claude-opus-4-6
+      - anthropic/claude-sonnet-4-6
+      - openai/gpt-4o
+    implementation:
+      - anthropic/claude-sonnet-4-6
+      - openai/gpt-4o
+      - deepseek/deepseek-chat
+    debugging:
+      - anthropic/claude-sonnet-4-6
+      - openai/gpt-4o
+    refactor:
+      - anthropic/claude-sonnet-4-6
+      - openai/gpt-4o
