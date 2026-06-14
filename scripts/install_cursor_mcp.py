@@ -37,9 +37,24 @@ def preview() -> None:
     print("(writes ~/.cursor/mcp.json + ~/.cursor/rules/llm-router.md)")
 
 
+def _merge_snippet() -> list[str]:
+    """直接合并 config/cursor_mcp_snippet.json 到 ~/.cursor/mcp.json。"""
+    CURSOR_MCP.parent.mkdir(parents=True, exist_ok=True)
+    current = _read_mcp(CURSOR_MCP)
+    snippet = _read_mcp(SNIPPET)
+    servers = current.setdefault("mcpServers", {})
+    entry = snippet.get("mcpServers", {}).get("llm-router")
+    if not entry:
+        raise RuntimeError("cursor_mcp_snippet.json missing llm-router entry")
+    servers["llm-router"] = entry
+    CURSOR_MCP.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+    return [f"merged llm-router into {CURSOR_MCP}"]
+
+
 def apply() -> int:
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
     proc = subprocess.run(
         ["llm-router", "install", "--host", "cursor"],
         env=env,
@@ -48,12 +63,15 @@ def apply() -> int:
         encoding="utf-8",
         errors="replace",
     )
-    print(proc.stdout)
+    if proc.stdout:
+        print(proc.stdout)
     if proc.stderr:
         print(proc.stderr, file=sys.stderr)
+
     if proc.returncode != 0:
-        print(f"FAIL: exit {proc.returncode}")
-        return proc.returncode
+        print("llm-router install failed — using local snippet fallback…")
+        for action in _merge_snippet():
+            print(f"  {action}")
 
     if not CURSOR_MCP.is_file():
         print(f"FAIL: {CURSOR_MCP} not created")
