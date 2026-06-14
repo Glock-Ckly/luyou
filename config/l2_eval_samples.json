@@ -1,0 +1,37 @@
+[
+  {"id": "arch-01", "prompt": "帮我设计一个多租户 SaaS 的后端架构，包括认证、计费和消息队列", "expected": "architecture"},
+  {"id": "arch-02", "prompt": "Design the module boundaries for a real-time chat system with 100k concurrent users", "expected": "architecture"},
+  {"id": "arch-03", "prompt": "这个单体应用要拆成微服务，先做技术选型和整体架构规划", "expected": "architecture"},
+
+  {"id": "sd-01", "prompt": "设计用户注册 API：请求字段、错误码、限流策略和数据库表结构", "expected": "system_design"},
+  {"id": "sd-02", "prompt": "Draw the data flow between frontend, API gateway, worker and Redis cache for order processing", "expected": "system_design"},
+
+  {"id": "dr-01", "prompt": "Prove this distributed lock algorithm maintains mutual exclusion under node failures and analyze worst-case latency", "expected": "deep_reasoning"},
+  {"id": "dr-02", "prompt": "从第一性原理比较 CRDT 与 OT 在协同编辑场景下的优劣", "expected": "deep_reasoning"},
+
+  {"id": "impl-01", "prompt": "写一个 hello world 函数，用 Python", "expected": "implementation"},
+  {"id": "impl-02", "prompt": "Implement JWT refresh token rotation with httponly cookies in Express", "expected": "implementation"},
+  {"id": "impl-03", "prompt": "帮我实现一个带分页和搜索的用户列表 API 接口", "expected": "implementation"},
+
+  {"id": "dbg-01", "prompt": "这段代码报 NullPointerException，帮我定位并修复", "expected": "debugging"},
+  {"id": "dbg-02", "prompt": "Production 上 API 返回 502，根据这段 nginx 日志排查问题", "expected": "debugging"},
+  {"id": "dbg-03", "prompt": "Fix this bug: the login form submits but session is not persisted", "expected": "debugging"},
+
+  {"id": "ref-01", "prompt": "把这个 800 行的 God class 拆成更小的模块，行为不变", "expected": "refactor"},
+  {"id": "ref-02", "prompt": "Refactor duplicated validation logic into a shared helper without changing outputs", "expected": "refactor"},
+
+  {"id": "boil-01", "prompt": "生成一个 FastAPI 项目的 CRUD 脚手架，含 models 和 routes", "expected": "boilerplate"},
+  {"id": "boil-02", "prompt": "Create a Dockerfile and docker-compose template for a Node.js API", "expected": "boilerplate"},
+
+  {"id": "bulk-01", "prompt": "为这 20 个 service 方法批量生成 pytest 单元测试", "expected": "bulk_generation"},
+  {"id": "bulk-02", "prompt": "Generate docstrings for all public functions in this package", "expected": "bulk_generation"},
+
+  {"id": "data-01", "prompt": "把这个 CSV 清洗后转成 JSON，去掉空行并统一日期格式", "expected": "data_processing"},
+  {"id": "data-02", "prompt": "Parse these log files and extract error counts grouped by endpoint", "expected": "data_processing"},
+
+  {"id": "patch-01", "prompt": "在 auth.py 第 42 行把 token 过期时间从 3600 改成 7200", "expected": "code_patch"},
+  {"id": "patch-02", "prompt": "Change the retry count from 3 to 5 in config.yaml only", "expected": "code_patch"},
+
+  {"id": "edit-01", "prompt": "重写 README.md，加入安装步骤和 API 示例", "expected": "file_edit"},
+  {"id": "edit-02", "prompt": "Update the entire utils/helpers.ts file to use ES modules", "expected": "file_edit"}
+]

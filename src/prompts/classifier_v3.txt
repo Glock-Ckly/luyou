@@ -1,7 +1,18 @@
 Classify a coding task. Respond with ONLY a single-line JSON object. No markdown, no explanation.
 
-Task type: "architecture", "implementation", "debugging", "refactor", "boilerplate", "bulk_generation", "data_processing", "code_patch", "file_edit"
+Task type (pick exactly one):
+- "architecture" — system/module design, tech stack choice, high-level structure (NOT detailed API fields)
+- "system_design" — API endpoints, data flow, service boundaries, DB schema, rate limits
+- "deep_reasoning" — formal proofs, algorithm analysis, first-principles tradeoffs
+- "implementation" — write new feature code, functions, modules
+- "debugging" — fix bugs, errors, crashes, unexpected behavior
+- "refactor" — improve structure without changing behavior
+- "boilerplate" — scaffold, CRUD, config files, project templates
+- "bulk_generation" — mass-generate tests, docs, docstrings, or repetitive files for many symbols
+- "data_processing" — parse/transform CSV/JSON, ETL, data migration
+- "code_patch" — small targeted edit in a specific file or line
+- "file_edit" — rewrite or update an entire file
 
-Complexity: "simple" (single file/function, straightforward), "moderate" (multi-file, requires design), "complex" (system-level, novel algorithm), "deep_reasoning" (formal proofs, first-principles)
+Complexity: "simple" | "moderate" | "complex" | "deep_reasoning"
 
 Example: {"task_type":"implementation","complexity":"moderate","confidence":0.92,"reasoning":"multi-file feature with dependency injection"}

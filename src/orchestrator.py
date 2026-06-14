@@ -34,13 +34,10 @@ from response_validator import validate, ValidationStatus
 from cursor_queue import push as cursor_push
 from task_decomposer import decompose, Subtask, DecomposerResult
 from relay_config import apply_relay_env, resolve_model
+from l2_classifier import classify_l2
 
 # 在任何 llm_router 导入之前注入中转站环境变量
 apply_relay_env()
-
-# ── L2 Classifier Prompt ──────────────────────────────────
-_L2_PROMPT_PATH = Path(__file__).parent / "prompts" / "classifier_v3.txt"
-_L2_SYSTEM_PROMPT = _L2_PROMPT_PATH.read_text(encoding="utf-8").strip()
 
 
 @dataclass
@@ -229,40 +226,7 @@ class MultiModelOrchestrator:
 
     async def _classify_l2(self, prompt: str) -> dict:
         """L2 LLM 分类器"""
-        from relay_llm import call_llm
-
-        try:
-            resp = await call_llm(
-                model=resolve_model(self.l2_model),
-                messages=[
-                    {"role": "system", "content": _L2_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.0,
-                max_tokens=256,
-            )
-
-            raw = resp.content
-            data = self._parse_json(raw)
-
-            return {
-                "task_type": data.get("task_type", "uncertain"),
-                "complexity": {"simple": 1, "moderate": 3, "complex": 5, "deep_reasoning": 5}
-                    .get(data.get("complexity", "moderate"), 3),
-                "confidence": min(1.0, max(0.0, float(data.get("confidence", 0.5)))),
-                "reasoning": data.get("reasoning", ""),
-                "source": "L2",
-                "l2_model": self.l2_model,
-                "l2_cost_usd": resp.cost_usd if hasattr(resp, "cost_usd") else 0.0,
-            }
-        except Exception:
-            return {
-                "task_type": "uncertain",
-                "complexity": 3,
-                "confidence": 0.0,
-                "reasoning": "L2 classification failed, defaulting to uncertain",
-                "source": "fallback",
-            }
+        return await classify_l2(prompt, l2_model=self.l2_model)
 
     async def _execute(
         self,
@@ -414,9 +378,6 @@ class MultiModelOrchestrator:
                 if match:
                     result[key] = float(match.group(1))
         return result if "task_type" in result else {"task_type": "uncertain"}
-
-
-# ── 便捷函数 ──────────────────────────────────────────────
 
 async def handle_prompt(prompt: str) -> dict:
     """便捷入口: 输入 prompt → 输出 JSON dict"""

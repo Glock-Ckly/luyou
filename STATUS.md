@@ -36,7 +36,8 @@
 | `src/relay_llm.py` | LiteLLM 薄封装 | ✅ S2–S4 |
 | `src/task_decomposer.py` | 大任务拆分 | ⚠️ 端到端待专项验证 |
 | `src/orchestrator.py` | 全流程编排器 | ✅ S6 通过 |
-| `src/prompts/classifier_v3.txt` | L2 分类 prompt | ⚠️ 未做 20+ 样本调优 |
+| `src/l2_classifier.py` | L2 LLM 分类器 | ✅ eval 25/25 |
+| `src/prompts/classifier_v3.txt` | L2 分类 prompt | ✅ v3.1 11 类 |
 | `src/prompts/decomposer.txt` | 拆分 prompt | ⚠️ 未做 10 条大任务验证 |
 | `src/policies/custom.yaml` | llm-router YAML 策略 | — |
 | `scripts/smoke_relay.py` | 分阶段验收脚本 | ✅ 15/15 |
@@ -48,8 +49,9 @@
 ### ~~1. API Key 配置~~ ✅ 已解决（2026-06-14）
 密钥写入 `~/.llm-router/.env`，smoke S0–S6 全部通过。**建议轮换密钥**（曾在对话中明文出现）。
 
-### 2. L2 分类器 prompt 调优
-**需要:** 跑 20+ 条样本，检查 `classifier_v3.txt` 的 task_type 准确率
+### ~~2. L2 分类器 prompt 调优~~ ✅ 基线通过（2026-06-14）
+`scripts/eval_l2.py` — **25/25 routing accuracy**（`config/l2_eval_samples.json`）
+新增 `src/l2_classifier.py`，`classifier_v3.txt` 补全 11 种 task_type。
 
 ### 3. TaskDecomposer 验证
 **需要:** 跑 10 条大任务，检查 split JSON 质量
@@ -74,7 +76,7 @@
 
 1. ~~配置 API Key~~ ✅
 2. ~~首次 smoke 验收~~ ✅ `python scripts/smoke_relay.py`
-3. L2 分类 20+ 样本 → 调 `classifier_v3.txt`
+3. ~~L2 分类 20+ 样本~~ ✅ `python scripts/eval_l2.py`
 4. Decomposer 10 条大任务 → 调 `decomposer.txt`
 5. `llm-router install`（可选，MCP 接入）
 6. Cursor Queue CLI 注册
@@ -98,7 +100,8 @@ Skill: `C:\Users\32402\.claude\skills\luyou\SKILL.md`
 │   ├── relay.env.example
 │   └── relay_models.yaml
 ├── scripts/
-│   └── smoke_relay.py
+│   ├── smoke_relay.py
+│   └── eval_l2.py
 └── src/
     ├── relay_config.py
     ├── relay_llm.py

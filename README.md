@@ -8,7 +8,9 @@
 
 1. 复制 `config/relay.env.example` → `~/.llm-router/.env`，填入中转站密钥与 Base URL
 2. 按需调整 `config/relay_models.yaml` 模型映射
-3. 验收：`python scripts/smoke_relay.py`（须 **15/15 通过**）
+3. 验收（提交前必跑）：
+   - `python scripts/smoke_relay.py` — 须 **15/15 通过**
+   - `python scripts/eval_l2.py` — L2 分类评估（当前基线 **25/25**）
 4. 端到端：`cd src && python -c "import asyncio; from orchestrator import handle_prompt; print(asyncio.run(handle_prompt('hello')))"`
 
 ## 提交前必跑验收
@@ -17,9 +19,10 @@
 
 ```bash
 python scripts/smoke_relay.py
+python scripts/eval_l2.py
 ```
 
-仅当输出 `Done: 15 passed, 0 failed` 时再 `git commit` / `git push`。
+仅当 smoke `15 passed, 0 failed` 且 eval `PASS` 时再 `git commit` / `git push`。
 
 ## 架构
 
