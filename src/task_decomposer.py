@@ -24,6 +24,14 @@ DECOMPOSER_PROMPT = (Path(__file__).parent / "prompts" / "decomposer.txt").read_
     encoding="utf-8"
 ).strip()
 
+_TYPE_HINT_ALIASES = {
+    "testing": "bulk_generation",
+    "test": "bulk_generation",
+    "tests": "bulk_generation",
+    "unit_test": "bulk_generation",
+    "system_design": "architecture",
+}
+
 
 @dataclass
 class Subtask:
@@ -49,6 +57,7 @@ def _should_consider_split(prompt: str) -> bool:
         return True
     # 含编号列表
     if any(marker in prompt for marker in ["1.", "2.", "3.",
+                                             "1)", "2)", "3)",
                                              "1、", "2、", "3、",
                                              "第一步", "第二步",
                                              "first", "second", "third"]):
@@ -57,6 +66,8 @@ def _should_consider_split(prompt: str) -> bool:
     if "；" in prompt or "。然后" in prompt or "。接着" in prompt:
         return True
     if "and also" in prompt.lower() or "additionally" in prompt.lower():
+        return True
+    if "先" in prompt and "再" in prompt:
         return True
     return False
 
@@ -92,38 +103,76 @@ async def decompose(
             max_tokens=1024,
         )
 
-        # 解析 JSON — 复用 llm-router 的 4-tier 解析策略
-        raw = resp.content
-        data = _parse_json(raw)
-
-        if not data.get("split"):
-            return DecomposerResult(
-                split=False,
-                subtasks=[Subtask(prompt=prompt, index=0)],
-                reasoning=data.get("reasoning", ""),
-                model_used="deepseek/deepseek-chat",
-                cost_usd=resp.cost_usd if hasattr(resp, "cost_usd") else 0.0,
-            )
-
-        subtasks = []
-        for i, st in enumerate(data.get("subtasks", [])):
-            subtasks.append(Subtask(
-                prompt=st.get("prompt", ""),
-                type_hint=st.get("type_hint"),
-                index=i,
-            ))
-
-        return DecomposerResult(
-            split=True,
-            subtasks=subtasks,
-            reasoning=data.get("reasoning", ""),
-            model_used="deepseek/deepseek-chat",
-            cost_usd=resp.cost_usd if hasattr(resp, "cost_usd") else 0.0,
-        )
+        data = await _parse_decomposer_response(resp, prompt, messages, call_llm, force)
+        return _result_from_data(data, prompt)
 
     except Exception:
         # 拆分失败 → 不拆，整条发给路由器
         return DecomposerResult(split=False, subtasks=[Subtask(prompt=prompt, index=0)])
+
+
+async def _parse_decomposer_response(resp, prompt: str, messages: list, call_llm, force: bool) -> dict:
+    """解析 LLM 响应；force 模式下 split=false 时重试一次。"""
+    raw = resp.content
+    data = _parse_json(raw)
+    cost = resp.cost_usd if hasattr(resp, "cost_usd") else 0.0
+
+    if force and not data.get("split") and _should_consider_split(prompt):
+        retry_messages = messages + [
+            {"role": "assistant", "content": raw},
+            {
+                "role": "user",
+                "content": (
+                    "This is a multi-step project with numbered stages. "
+                    "You MUST return split=true with at least 2 subtasks. "
+                    "Return ONLY the JSON object."
+                ),
+            },
+        ]
+        retry = await call_llm(
+            model="deepseek/deepseek-chat",
+            messages=retry_messages,
+            temperature=0.0,
+            max_tokens=1024,
+        )
+        data = _parse_json(retry.content)
+        if hasattr(retry, "cost_usd"):
+            cost += retry.cost_usd
+
+    data["_cost_usd"] = cost
+    return data
+
+
+def _result_from_data(data: dict, prompt: str) -> DecomposerResult:
+    """从解析后的 dict 构建 DecomposerResult。"""
+    cost = data.get("_cost_usd", 0.0)
+    if not data.get("split"):
+        return DecomposerResult(
+            split=False,
+            subtasks=[Subtask(prompt=prompt, index=0)],
+            reasoning=data.get("reasoning", ""),
+            model_used="deepseek/deepseek-chat",
+            cost_usd=cost,
+        )
+
+    subtasks = []
+    for i, st in enumerate(data.get("subtasks", [])):
+        hint = st.get("type_hint")
+        if hint:
+            hint = _TYPE_HINT_ALIASES.get(hint, hint)
+        subtasks.append(Subtask(
+            prompt=st.get("prompt", ""),
+            type_hint=hint,
+            index=i,
+        ))
+
+    return DecomposerResult(
+        split=True,
+        subtasks=subtasks,
+        reasoning=data.get("reasoning", ""),
+        model_used="deepseek/deepseek-chat",
+        cost_usd=cost,
+    )
 
 
 def _parse_json(raw: str) -> dict:
