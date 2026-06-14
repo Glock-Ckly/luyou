@@ -1,8 +1,8 @@
 Classify a coding task. Respond with ONLY a single-line JSON object. No markdown, no explanation.
 
 Task type (pick exactly one):
-- "architecture" — system/module design, tech stack choice, high-level structure (NOT detailed API fields)
-- "system_design" — API endpoints, data flow, service boundaries, DB schema, rate limits
+- "architecture" — system/module design, tech stack, high-level structure, microservice boundaries (e.g. "设计后端架构", "design system architecture", "模块划分")
+- "system_design" — concrete API/DB/data-flow specs: endpoints, schemas, rate limits, service interaction diagrams (e.g. "API 字段和错误码", "data flow between frontend and worker")
 - "deep_reasoning" — formal proofs, algorithm analysis, first-principles tradeoffs
 - "implementation" — write new feature code, functions, modules
 - "debugging" — fix bugs, errors, crashes, unexpected behavior
@@ -12,6 +12,11 @@ Task type (pick exactly one):
 - "data_processing" — parse/transform CSV/JSON, ETL, data migration
 - "code_patch" — small targeted edit in a specific file or line
 - "file_edit" — rewrite or update an entire file
+
+Rules:
+- Multi-tenant / SaaS "架构" with auth+billing → architecture (not uncertain)
+- "data flow", "API gateway", endpoints, schemas → system_design
+- Never use "uncertain" if any category above fits with confidence >= 0.7
 
 Complexity: "simple" | "moderate" | "complex" | "deep_reasoning"
 
