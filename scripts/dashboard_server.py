@@ -105,10 +105,17 @@ def _relay_providers() -> list[dict]:
 
 
 def _budget_ratio() -> float:
-    sys.path.insert(0, str(ROOT / "src"))
-    try:
+    """读取预算压力；超时则返回 0.0，避免阻塞单线程 HTTP 服务。"""
+    import concurrent.futures
+
+    def _fetch() -> float:
+        sys.path.insert(0, str(ROOT / "src"))
         from budget_adapter import get_budget_ratio_sync
         return get_budget_ratio_sync()
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(_fetch).result(timeout=3.0)
     except Exception:
         return 0.0
 
@@ -160,6 +167,12 @@ class Handler(BaseHTTPRequestHandler):
         pass  # 静默访问日志
 
     def do_GET(self):
+        try:
+            self._do_get()
+        except (ConnectionAbortedError, BrokenPipeError):
+            pass  # 客户端提前断开，忽略
+
+    def _do_get(self):
         path = urlparse(self.path).path
         if path == "/api/status":
             body = json.dumps(build_status(), ensure_ascii=False).encode("utf-8")
