@@ -1,5 +1,5 @@
 # 多模型路由系统 — 实施状态与待办
-> 2026-06-14 更新（中转站密钥接入 + smoke 验收通过）
+> 2026-06-14 更新（Decomposer + E2E + Cursor CLI 完成）
 
 ---
 
@@ -11,15 +11,15 @@
 | Anthropic（Ccode） | `https://all-api.ccode.dev` | `~/.llm-router/.env` | `anthropic/claude-sonnet-4-6` 同名 |
 | DeepSeek（官方 API） | `https://api.deepseek.com/v1` | `~/.llm-router/.env` | `deepseek/deepseek-chat` → `deepseek/deepseek-v4-flash` |
 
-**说明：** DeepSeek 密钥在 Ccode 网关返回 401，走 DeepSeek 官方 API；OpenAI/Anthropic 走 Ccode 中转站。
+**Smoke 验收：** `python scripts/smoke_relay.py` — **15/15 通过**
 
-**Smoke 验收：** `python scripts/smoke_relay.py` — **15/15 通过**（S0–S6，含端到端 hello world）
+**L2 评估：** `python scripts/eval_l2.py` — **23/25 routing (92%) PASS**
 
-**新增文件：**
-- `src/relay_config.py` — 加载 `~/.llm-router/.env`，注入 LiteLLM 环境变量
-- `src/relay_llm.py` — 直接调 LiteLLM（绕过 llm-router 缺 `standard.yaml` 的打包问题）
-- `config/relay.env.example` / `config/relay_models.yaml`
-- `scripts/smoke_relay.py`
+**Decomposer 评估：** `python scripts/eval_decomposer.py` — **8/10 (80%) PASS**
+
+**E2E 四场景：** `python scripts/eval_e2e.py` — **12/12 PASS**
+
+**进度看板：** `python scripts/dashboard_server.py` → http://127.0.0.1:1785
 
 ---
 
@@ -27,90 +27,85 @@
 
 | 文件 | 说明 | 自测 |
 |---|---|---|
-| `multi-llm-router-design.md` | 完整架构设计文档 | — |
-| `src/l1_classifier.py` | 关键词快筛 (9 类) | ✅ 6/6 |
-| `src/routing_table.py` | 核心映射 + 降级链 + 预算 4 区 | ✅ |
-| `src/response_validator.py` | 3 层后验校验 | ✅ 4/4 |
-| `src/cursor_queue.py` | Cursor 手动交付容器 | ✅ |
-| `src/relay_config.py` | 中转站环境注入 | ✅ S0 |
-| `src/relay_llm.py` | LiteLLM 薄封装 | ✅ S2–S4 |
-| `src/task_decomposer.py` | 大任务拆分 | ⚠️ 端到端待专项验证 |
-| `src/orchestrator.py` | 全流程编排器 | ✅ S6 通过 |
-| `src/l2_classifier.py` | L2 LLM 分类器 | ✅ eval 25/25 |
-| `src/prompts/classifier_v3.txt` | L2 分类 prompt | ✅ v3.1 11 类 |
-| `src/prompts/decomposer.txt` | 拆分 prompt | ⚠️ 未做 10 条大任务验证 |
-| `src/policies/custom.yaml` | llm-router YAML 策略 | — |
-| `scripts/smoke_relay.py` | 分阶段验收脚本 | ✅ 15/15 |
+| `src/l2_classifier.py` | L2 LLM 分类器 | ✅ eval 25 样本 |
+| `src/task_decomposer.py` | 大任务拆分 | ✅ eval 10 样本 80% |
+| `src/orchestrator.py` | 全流程编排器 | ✅ S6 + e2e |
+| `scripts/eval_decomposer.py` | Decomposer 评估 | ✅ 8/10 |
+| `scripts/eval_e2e.py` | 4 场景端到端 | ✅ 12/12 |
+| `scripts/cursor_cli.py` | Cursor Queue 独立 CLI | ✅ |
+| `scripts/dashboard_server.py` | 进度可视化 (1785) | ✅ |
+| `config/decomposer_eval_samples.json` | 10 条拆分样本 | — |
+| `config/cursor_mcp_snippet.json` | Cursor MCP 配置片段 | — |
 
 ---
 
-## 阻塞项 (需要用户介入)
+## 需用户手动操作（Agent 已停在此处）
 
-### ~~1. API Key 配置~~ ✅ 已解决（2026-06-14）
-密钥写入 `~/.llm-router/.env`，smoke S0–S6 全部通过。**建议轮换密钥**（曾在对话中明文出现）。
+### 1. llm-router MCP / Hooks 安装
 
-### ~~2. L2 分类器 prompt 调优~~ ✅ 基线通过（2026-06-14）
-`scripts/eval_l2.py` — **25/25 routing accuracy**（`config/l2_eval_samples.json`）
-新增 `src/l2_classifier.py`，`classifier_v3.txt` 补全 11 种 task_type。
+**原因：** `llm-router install` 面向 **Claude Code** 生态（SessionStart/UserPromptSubmit 等 hooks），**不直接写入 Cursor MCP**。且 Windows 默认 GBK 控制台会导致 `doctor`/`install` 无 UTF-8 时崩溃。
 
-### 3. TaskDecomposer 验证
-**需要:** 跑 10 条大任务，检查 split JSON 质量
+**手动步骤：**
 
-### 4. 预算状态接口
-**原因:** `llm_router.budget.get_budget_state()` 当前未接入（orchestrator 用 mock 0.0）
-**需要:** 若需渐进预算，单独适配或放弃 llm-router budget 模块
+```powershell
+$env:PYTHONIOENCODING='utf-8'
+llm-router install --check          # 预览
+llm-router install --headless       # 无 OAuth，写 Claude Code hooks + MCP
+llm-router doctor                   # 验证
+```
 
-### 5. MCP 注册
-**需要:** 用户手动 `llm-router install`（交互式）
+**注意：** 若你主要用 **Cursor + 本仓库 orchestrator**，hooks 可能与现有 `load-claude-md` 冲突，建议只装 MCP、不装 hooks，或跳过此步（当前 `relay_llm.py` 已可独立运行）。
 
-### 6. Cursor Queue CLI 未接入
-**需要:** 评估独立 CLI 或集成 llm-router MCP
+### 2. Cursor MCP 注册（可选）
 
-### 7. llm-router 打包缺陷（已绕过）
-**现象:** 已安装的 `llm-router` 缺少 `policies/standard.yaml`，`llm_router.providers` 无法导入
-**当前方案:** 使用 `relay_llm.py` 直接调 LiteLLM，不依赖 llm-router 的 call_llm
+将 `config/cursor_mcp_snippet.json` 合并到 Cursor 的 MCP 配置（Settings → MCP，或项目/全局 `mcp.json`）：
+
+```json
+{
+  "mcpServers": {
+    "llm-router": {
+      "command": "llm-router",
+      "args": []
+    }
+  }
+}
+```
+
+### 3. Cursor Queue 日常使用
+
+```bash
+python scripts/cursor_cli.py list
+python scripts/cursor_cli.py pop
+python scripts/cursor_cli.py done <task_id>
+```
+
+### 4. 预算状态接口（可选）
+
+`orchestrator._get_budget_ratio()` 仍 fallback 0.0；需真实预算时接入 `llm_router.budget` 或自建计数。
 
 ---
 
-## 下一步（按顺序）
+## 已知小问题
 
-1. ~~配置 API Key~~ ✅
-2. ~~首次 smoke 验收~~ ✅ `python scripts/smoke_relay.py`
-3. ~~L2 分类 20+ 样本~~ ✅ `python scripts/eval_l2.py`
-4. Decomposer 10 条大任务 → 调 `decomposer.txt`
-5. `llm-router install`（可选，MCP 接入）
-6. Cursor Queue CLI 注册
-7. 4 场景完整端到端测试
+| 项 | 说明 |
+|---|---|
+| Decomposer split-05/06 | 2 条复杂任务 LLM 返回 `split:false`，边界样本可后续调 prompt |
+| L2 arch-01 / sd-02 | 偶发 `uncertain`，routing 仍 92% PASS |
+| smoke S5 Windows | 已修 `encoding=utf-8` 防 GBK 解码失败 |
+
+---
+
+## 验收命令（提交前）
+
+```bash
+python scripts/smoke_relay.py    # 15 passed
+python scripts/eval_l2.py        # PASS
+python scripts/eval_decomposer.py
+python scripts/eval_e2e.py
+```
 
 ---
 
 ## `/luyou` 快捷入口
 
 Skill: `C:\Users\32402\.claude\skills\luyou\SKILL.md`
-
----
-
-## 文件清单
-
-```
-多模型路由系统/
-├── multi-llm-router-design.md
-├── STATUS.md
-├── config/
-│   ├── relay.env.example
-│   └── relay_models.yaml
-├── scripts/
-│   ├── smoke_relay.py
-│   └── eval_l2.py
-└── src/
-    ├── relay_config.py
-    ├── relay_llm.py
-    ├── l1_classifier.py
-    ├── routing_table.py
-    ├── response_validator.py
-    ├── cursor_queue.py
-    ├── task_decomposer.py
-    ├── orchestrator.py
-    ├── prompts/
-    └── policies/
-```

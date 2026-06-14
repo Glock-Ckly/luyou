@@ -126,9 +126,11 @@ def s5_l1() -> None:
         cwd=str(SRC),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
     )
-    out = proc.stdout + proc.stderr
+    out = (proc.stdout or "") + (proc.stderr or "")
     ok("S5 L1 self-test exit 0", proc.returncode == 0, out.strip()[-200:] if out else "no output")
 
 

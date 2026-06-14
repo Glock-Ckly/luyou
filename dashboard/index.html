@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>luyou · 多模型路由进度</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --pending: #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    h1 { font-size: 1.5rem; font-weight: 600; }
+    h1 span { color: var(--accent); }
+    .meta { color: var(--muted); font-size: 0.85rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .card h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .progress-ring-wrap {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+    .ring {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: conic-gradient(var(--ok) calc(var(--pct) * 1%), var(--border) 0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .ring-inner {
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      background: var(--card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+    .timeline { list-style: none; }
+    .timeline li {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .timeline li:last-child { border-bottom: none; }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 0.35rem;
+      flex-shrink: 0;
+    }
+    .dot.done { background: var(--ok); }
+    .dot.current { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+    .dot.pending { background: var(--pending); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .badge.ok { background: #14532d; color: #86efac; }
+    .badge.warn { background: #422006; color: #fcd34d; }
+    .badge.pending { background: #1e293b; color: #94a3b8; }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+    }
+    .flow .step {
+      background: #243044;
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .flow .arrow { color: var(--muted); }
+    .provider { margin-bottom: 0.6rem; font-size: 0.85rem; }
+    .provider strong { color: var(--accent); }
+    .blocker {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .blocker:last-child { border-bottom: none; }
+    .blocker.done { opacity: 0.55; text-decoration: line-through; }
+    footer { margin-top: 1.5rem; text-align: center; color: var(--muted); font-size: 0.8rem; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1><span>luyou</span> 多模型路由系统</h1>
+      <p class="meta" id="subtitle">加载中…</p>
+    </div>
+    <p class="meta" id="refresh">自动刷新 30s</p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>总体进度</h2>
+      <div class="progress-ring-wrap">
+        <div class="ring" id="ring" style="--pct: 0">
+          <div class="ring-inner" id="pctText">—</div>
+        </div>
+        <div>
+          <p id="progressDetail" style="font-size:0.9rem;margin-bottom:0.5rem">—</p>
+          <p class="meta" id="gitInfo">—</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>路线图</h2>
+      <ul class="timeline" id="roadmap"></ul>
+    </div>
+
+    <div class="card">
+      <h2>架构流水线</h2>
+      <div class="flow" id="pipeline"></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card" style="grid-column: span 2">
+      <h2>模块状态</h2>
+      <table>
+        <thead><tr><th>模块</th><th>说明</th><th>状态</th></tr></thead>
+        <tbody id="modules"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>验收指标</h2>
+      <table>
+        <thead><tr><th>测试</th><th>结果</th></tr></thead>
+        <tbody id="metrics"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>中转站 Provider</h2>
+      <div id="providers"></div>
+    </div>
+    <div class="card">
+      <h2>阻塞 / 待办</h2>
+      <div id="blockers"></div>
+    </div>
+  </div>
+
+  <footer>
+    <a href="https://github.com/Glock-Ckly/luyou" target="_blank">GitHub · Glock-Ckly/luyou</a>
+    · 端口 1785 · <span id="ts"></span>
+  </footer>
+
+  <script>
+    function badge(status) {
+      const cls = status === 'ok' ? 'ok' : status === 'warn' ? 'warn' : 'pending';
+      const label = status === 'ok' ? '完成' : status === 'warn' ? '进行中' : '待办';
+      return `<span class="badge ${cls}">${label}</span>`;
+    }
+
+    function render(data) {
+      document.getElementById('subtitle').textContent =
+        `更新于 ${data.updated_at} · ${data.project_path}`;
+      document.getElementById('ring').style.setProperty('--pct', data.progress.percent);
+      document.getElementById('pctText').textContent = data.progress.percent + '%';
+      document.getElementById('progressDetail').textContent =
+        `${data.progress.done}/${data.progress.total} 里程碑已完成`;
+      document.getElementById('gitInfo').textContent =
+        `git ${data.git.branch} @ ${data.git.commit}`;
+
+      document.getElementById('roadmap').innerHTML = data.roadmap.map(s => `
+        <li>
+          <span class="dot ${s.status}"></span>
+          <span>${s.title}</span>
+        </li>`).join('');
+
+      document.getElementById('pipeline').innerHTML = data.pipeline
+        .map((s, i) => (i ? '<span class="arrow">→</span>' : '') + `<span class="step">${s}</span>`)
+        .join('');
+
+      document.getElementById('modules').innerHTML = data.modules.map(m => `
+        <tr><td><code>${m.name}</code></td><td>${m.desc}</td><td>${badge(m.status)}</td></tr>`
+      ).join('');
+
+      document.getElementById('metrics').innerHTML = data.metrics.map(m => `
+        <tr><td>${m.name}</td><td>${badge(m.passed ? 'ok' : 'warn')} ${m.value}</td></tr>`
+      ).join('');
+
+      document.getElementById('providers').innerHTML = data.providers.map(p => `
+        <div class="provider">
+          <strong>${p.name}</strong><br/>
+          <span class="meta">${p.base_url}</span><br/>
+          密钥 ${p.key_mask} · ${p.model_map}
+        </div>`).join('');
+
+      document.getElementById('blockers').innerHTML = data.blockers.map(b => `
+        <div class="blocker ${b.done ? 'done' : ''}">
+          <strong>#${b.id}</strong> ${b.title}
+          ${b.done ? '' : `<br/><span class="meta">${b.detail}</span>`}
+        </div>`).join('');
+
+      document.getElementById('ts').textContent = new Date().toLocaleString('zh-CN');
+    }
+
+    async function load() {
+      try {
+        const r = await fetch('/api/status');
+        render(await r.json());
+      } catch (e) {
+        document.getElementById('subtitle').textContent = '无法连接 API: ' + e.message;
+      }
+    }
+    load();
+    setInterval(load, 30000);
+  </script>
+</body>
+</html>

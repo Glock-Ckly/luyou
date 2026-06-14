@@ -1,0 +1,62 @@
+[
+  {
+    "id": "split-01",
+    "prompt": "帮我做一个用户登录系统，包括数据库设计、后端 API 和前端表单。第一步设计 users 表和 JWT 策略；第二步实现 POST /login 和 /register；第三步写 React 登录页；第四步补单元测试。",
+    "expect_split": true,
+    "min_subtasks": 3
+  },
+  {
+    "id": "split-02",
+    "prompt": "Build an e-commerce checkout flow: 1) design order/payment schema 2) implement Stripe webhook handler 3) add cart API endpoints 4) generate email receipt templates 5) write integration tests for the happy path.",
+    "expect_split": true,
+    "min_subtasks": 3
+  },
+  {
+    "id": "split-03",
+    "prompt": "重构这个单体 Flask 应用：先画模块边界和迁移计划（auth、orders、billing），再拆出独立服务，最后更新 docker-compose 和 CI 流水线。",
+    "expect_split": true,
+    "min_subtasks": 2
+  },
+  {
+    "id": "split-04",
+    "prompt": "做一个内部知识库：设计向量检索架构（embedding 模型、分块策略、索引），实现 FastAPI 上传与检索接口，再批量导入现有 Markdown 文档并生成管理后台 CRUD 页面。",
+    "expect_split": true,
+    "min_subtasks": 3
+  },
+  {
+    "id": "split-05",
+    "prompt": "从零搭一个实时聊天：先系统架构（WebSocket gateway、Redis pub/sub、消息持久化），然后实现 Go 网关，再写客户端 SDK 示例，最后压测脚本和监控大盘配置。",
+    "expect_split": true,
+    "min_subtasks": 3
+  },
+  {
+    "id": "split-06",
+    "prompt": "数据管道项目：1. 设计 raw→staging→mart 三层表结构 2. 写 Airflow DAG 清洗 CSV 3. 生成 dbt 模型 4. 批量产出 30 张报表 SQL 模板。",
+    "expect_split": true,
+    "min_subtasks": 3
+  },
+  {
+    "id": "nosplit-01",
+    "prompt": "写一个 Python 装饰器，测量函数执行时间并打印毫秒数。",
+    "expect_split": false,
+    "min_subtasks": 1
+  },
+  {
+    "id": "nosplit-02",
+    "prompt": "Fix the off-by-one bug in binary_search() — the loop exits early when target is at index 0.",
+    "expect_split": false,
+    "min_subtasks": 1
+  },
+  {
+    "id": "nosplit-03",
+    "prompt": "在 config.yaml 第 12 行把 max_retries 从 3 改成 5。",
+    "expect_split": false,
+    "min_subtasks": 1
+  },
+  {
+    "id": "nosplit-04",
+    "prompt": "Explain what a mutex is in one short paragraph.",
+    "expect_split": false,
+    "min_subtasks": 1
+  }
+]
