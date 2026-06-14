@@ -137,6 +137,25 @@
     .blocker.done { opacity: 0.55; text-decoration: line-through; }
     footer { margin-top: 1.5rem; text-align: center; color: var(--muted); font-size: 0.8rem; }
     a { color: var(--accent); }
+    .banner {
+      background: linear-gradient(90deg, #14532d, #166534);
+      border: 1px solid #22c55e;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      display: none;
+      font-size: 0.95rem;
+    }
+    .banner.show { display: block; }
+    .banner strong { color: #86efac; }
+    .stat-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .stat-pill {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.35rem 0.65rem;
+      font-size: 0.8rem;
+    }
   </style>
 </head>
 <body>
@@ -147,6 +166,11 @@
     </div>
     <p class="meta" id="refresh">自动刷新 30s</p>
   </header>
+
+  <div class="banner" id="banner">
+    <strong>全部里程碑已完成</strong> — smoke / L2 / Decomposer / E2E / MCP / Cursor CLI 均已验收通过。
+    <div class="stat-row" id="statRow"></div>
+  </div>
 
   <div class="grid">
     <div class="card">
@@ -188,6 +212,10 @@
         <thead><tr><th>测试</th><th>结果</th></tr></thead>
         <tbody id="metrics"></tbody>
       </table>
+    </div>
+    <div class="card">
+      <h2>路由映射速查</h2>
+      <div id="routing"></div>
     </div>
   </div>
 
@@ -254,6 +282,24 @@
           <strong>#${b.id}</strong> ${b.title}
           ${b.done ? '' : `<br/><span class="meta">${b.detail}</span>`}
         </div>`).join('');
+
+      const banner = document.getElementById('banner');
+      if (data.progress.percent >= 100) {
+        banner.classList.add('show');
+        document.getElementById('statRow').innerHTML = [
+          `预算压力 ${(data.budget_ratio * 100).toFixed(0)}%`,
+          `验收 ${data.metrics.filter(m => m.passed).length}/${data.metrics.length}`,
+          `模块 ${data.modules.filter(m => m.status === 'ok').length}/${data.modules.length}`,
+        ].map(s => `<span class="stat-pill">${s}</span>`).join('');
+      } else {
+        banner.classList.remove('show');
+      }
+
+      if (data.routing) {
+        document.getElementById('routing').innerHTML = Object.entries(data.routing)
+          .map(([k, v]) => `<div class="provider"><strong>${k}</strong><br/><span class="meta">${v}</span></div>`)
+          .join('');
+      }
 
       document.getElementById('ts').textContent = new Date().toLocaleString('zh-CN');
     }

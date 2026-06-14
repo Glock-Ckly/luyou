@@ -104,6 +104,15 @@ def _relay_providers() -> list[dict]:
         ]
 
 
+def _budget_ratio() -> float:
+    sys.path.insert(0, str(ROOT / "src"))
+    try:
+        from budget_adapter import get_budget_ratio_sync
+        return get_budget_ratio_sync()
+    except Exception:
+        return 0.0
+
+
 def build_status() -> dict:
     done = sum(1 for r in ROADMAP if r["done"])
     total = len(ROADMAP)
@@ -131,8 +140,10 @@ def build_status() -> dict:
             {"name": "smoke_relay (S0–S6)", "value": "15/15", "passed": True},
             {"name": "eval_l2 (routing)", "value": "25/25", "passed": True},
             {"name": "eval_decomposer", "value": "10/10", "passed": True},
-            {"name": "eval_e2e (4 scenarios)", "value": "12/12", "passed": True},
+            {"name": "eval_e2e (4 scenarios)", "value": "13/13", "passed": True},
+            {"name": "run_acceptance", "value": "6/6", "passed": True},
         ],
+        "budget_ratio": _budget_ratio(),
         "providers": _relay_providers(),
         "blockers": BLOCKERS,
         "routing": {
