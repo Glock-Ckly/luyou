@@ -15,6 +15,8 @@
 
 **进度看板：** `python scripts/dashboard_server.py` → http://127.0.0.1:1785
 
+**路由分发 UI：** 单页 `http://127.0.0.1:1785` · `GET /api/meta` · `POST /api/route` · DeepSeek 规划 → Codex/Cursor 执行
+
 ---
 
 ## 已完成里程碑

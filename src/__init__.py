@@ -24,11 +24,14 @@ from .routing_table import (
 from .l1_classifier import classify_l1, L1Result
 from .cursor_queue import push as cursor_push, pop as cursor_pop, list_tasks as cursor_list
 from .orchestrator import MultiModelOrchestrator, handle_prompt
+from .dispatcher import TaskDispatcher, dispatch_prompt
 
 __version__ = "0.1.0"
 __all__ = [
     "MultiModelOrchestrator",
     "handle_prompt",
+    "TaskDispatcher",
+    "dispatch_prompt",
     "route",
     "RoutingDecision",
     "TaskType",
