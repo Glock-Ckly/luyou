@@ -15,7 +15,32 @@ from relay_config import apply_relay_env, resolve_model
 apply_relay_env()
 
 _L2_PROMPT_PATH = Path(__file__).parent / "prompts" / "classifier_v3.txt"
-DEFAULT_L2_MODEL = "deepseek/deepseek-chat"
+DEFAULT_L2_MODEL = "deepseek/deepseek-v4-flash"
+
+_COMPLEXITY_MAP = {
+    "trivial": 0,
+    "simple": 1,
+    "moderate": 2,
+    "complex": 3,
+    "deep_reasoning": 4,
+    "t0": 0,
+    "t1": 1,
+    "t2": 2,
+    "t3": 3,
+    "t4": 4,
+}
+
+
+def normalize_complexity(value, default: int = 2) -> int:
+    if isinstance(value, (int, float)):
+        return max(0, min(4, int(value)))
+    raw = str(value or "").strip().lower()
+    if raw in _COMPLEXITY_MAP:
+        return _COMPLEXITY_MAP[raw]
+    try:
+        return max(0, min(4, int(float(raw))))
+    except ValueError:
+        return default
 
 
 def get_l2_system_prompt() -> str:
@@ -78,8 +103,7 @@ async def classify_l2(
         data = parse_l2_json(resp.content)
         return {
             "task_type": data.get("task_type", "uncertain"),
-            "complexity": {"simple": 1, "moderate": 3, "complex": 5, "deep_reasoning": 5}
-                .get(str(data.get("complexity", "moderate")), 3),
+            "complexity": normalize_complexity(data.get("complexity", "moderate")),
             "confidence": min(1.0, max(0.0, float(data.get("confidence", 0.5)))),
             "reasoning": data.get("reasoning", ""),
             "source": "L2",
@@ -89,7 +113,7 @@ async def classify_l2(
     except Exception as exc:
         return {
             "task_type": "uncertain",
-            "complexity": 3,
+            "complexity": 2,
             "confidence": 0.0,
             "reasoning": f"L2 classification failed: {exc}",
             "source": "fallback",

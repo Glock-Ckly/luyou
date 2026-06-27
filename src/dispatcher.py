@@ -1,12 +1,9 @@
-"""
-Dispatcher — 纯任务分发器
+"""Task dispatcher for routing v2.
 
-DeepSeek（大脑）: 拆分 → 分类 → 规划方向
-Codex / Cursor Queue: 按规划执行，本模块不介入执行细节
-
-架构:
-  Prompt → Decomposer(DeepSeek) → Classify(L1/L2 DeepSeek) → Plan(DeepSeek)
-       → Route → Codex exec | Cursor Queue | brain_only
+Flow:
+prompt -> decompose -> classify -> route -> plan -> executor.
+The public `dispatch_prompt()` JSON shape remains backward-compatible and only
+adds v2 fields.
 """
 
 from __future__ import annotations
@@ -16,14 +13,14 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from budget_adapter import get_budget_ratio
+from codex_executor import codex_available, run_codex
+from cursor_queue import push as cursor_push
 from l1_classifier import classify_l1
 from l2_classifier import classify_l2, parse_l2_json
-from routing_table import route, CostLevel
-from task_decomposer import decompose, Subtask, DecomposerResult
-from cursor_queue import push as cursor_push
-from codex_executor import run_codex, codex_available
 from relay_config import apply_relay_env
-from budget_adapter import get_budget_ratio
+from routing_table import route
+from task_decomposer import DecomposerResult, Subtask, decompose
 
 apply_relay_env()
 
@@ -32,11 +29,11 @@ _PLANNER_PROMPT = (Path(__file__).parent / "prompts" / "planner.txt").read_text(
 ).strip()
 
 CURSOR_TYPES = {"code_patch", "file_edit"}
-CODEX_TYPES = {
-    "implementation", "debugging", "refactor",
-    "boilerplate", "bulk_generation", "data_processing", "uncertain",
-}
+CODEX_TYPES = {"implementation", "debugging", "refactor", "uncertain"}
+RELAY_API_TYPES = {"boilerplate", "bulk_generation", "data_processing"}
 BRAIN_ONLY_TYPES = {"architecture", "system_design", "deep_reasoning"}
+PLAN_PRO_MODEL = "deepseek/deepseek-v4-pro"
+PLAN_FLASH_MODEL = "deepseek/deepseek-v4-flash"
 
 
 @dataclass
@@ -59,6 +56,11 @@ class SubtaskDispatch:
     success: bool
     confidence: float = 0.0
     cursor_task_id: str | None = None
+    primary: str = ""
+    fallback: list[str] = field(default_factory=list)
+    tier: str = ""
+    complexity_tier: str = ""
+    budget_zone: str = "green"
 
 
 @dataclass
@@ -77,7 +79,7 @@ class DispatchResult:
 
 
 class TaskDispatcher:
-    """只分发，不执行编码逻辑。"""
+    """Dispatches work; execution stays delegated to Codex, relay, or queue."""
 
     def __init__(self, l1_threshold: float = 0.7):
         self.l1_threshold = l1_threshold
@@ -93,137 +95,89 @@ class TaskDispatcher:
         steps: list[str] = []
         sub_dispatches: list[SubtaskDispatch] = []
 
-        # 1. 拆分
         steps.append("decompose")
-        timeline.append(DispatchStep("decompose", "DeepSeek 分析是否拆分任务", "running"))
+        timeline.append(DispatchStep("decompose", "DeepSeek decomposes task", "running"))
         decomp = await self._decompose(prompt)
         timeline[-1] = DispatchStep(
             "decompose",
-            f"{'已拆分' if decomp.split else '单任务'} · {len(decomp.subtasks)} 个子任务",
+            f"{'split' if decomp.split else 'single'} task; {len(decomp.subtasks)} subtasks",
             "done",
         )
 
         budget_ratio = await get_budget_ratio()
 
         for sub in decomp.subtasks:
-            # 2. 分类
             steps.append("classify")
-            timeline.append(DispatchStep(
-                "classify",
-                f"子任务 {sub.index}: L1/L2 分类",
-                "running",
-            ))
+            timeline.append(DispatchStep("classify", f"subtask {sub.index}: L1/L2", "running"))
             classification = await self._classify(sub)
             task_type = classification["task_type"]
             timeline[-1] = DispatchStep(
                 "classify",
-                f"→ {task_type} (conf {classification.get('confidence', 0):.2f}, {classification.get('source', '?')})",
+                (
+                    f"{task_type} "
+                    f"(conf {classification.get('confidence', 0):.2f}, "
+                    f"{classification.get('source', '?')})"
+                ),
                 "done",
             )
 
-            # 3. 路由
             steps.append("route")
             decision = route(
                 task_type=task_type,
-                complexity=classification.get("complexity", 3),
+                complexity=classification.get("complexity", 2),
                 budget_ratio=budget_ratio,
             )
-            timeline.append(DispatchStep(
-                "route",
-                f"路由表 → {decision.model}",
-                "done",
-            ))
+            timeline.append(
+                DispatchStep(
+                    "route",
+                    (
+                        f"{decision.model} via {decision.executor} "
+                        f"({decision.complexity_tier}, {decision.tier}, {decision.budget_zone})"
+                    ),
+                    "done",
+                )
+            )
 
-            # 4. DeepSeek 规划
             steps.append("plan")
-            timeline.append(DispatchStep("plan", "DeepSeek 生成执行方向", "running"))
-            plan = await self._plan(sub.prompt, task_type, classification)
-            executor = self._resolve_executor(task_type, plan.get("executor", ""))
+            planner_model = self._planner_model(decision.complexity_tier)
+            timeline.append(DispatchStep("plan", f"{planner_model} generates direction", "running"))
+            plan = await self._plan(sub.prompt, task_type, classification, planner_model, decision.executor)
+            executor = self._resolve_executor(task_type, plan.get("executor", ""), decision.executor)
             timeline[-1] = DispatchStep(
                 "plan",
-                f"{plan.get('summary', '')[:60]} → {executor}",
+                f"{plan.get('summary', '')[:60]} -> {executor}",
                 "done",
             )
 
-            # 5. 分发执行
             steps.append("dispatch")
-            timeline.append(DispatchStep("dispatch", f"交给 {executor}", "running"))
+            timeline.append(DispatchStep("dispatch", f"dispatch to {executor}", "running"))
 
             if executor == "cursor_queue":
-                ct = cursor_push(
-                    task_type=task_type,
-                    instruction=sub.prompt,
-                    context=plan.get("direction", ""),
+                sub_dispatches.append(self._dispatch_cursor(sub, task_type, plan, decision))
+                timeline[-1] = DispatchStep(
+                    "dispatch",
+                    f"Cursor Queue {sub_dispatches[-1].cursor_task_id}",
+                    "done",
                 )
-                result_text = (
-                    f"已入队 Cursor Queue\n"
-                    f"ID: {ct.id}\n"
-                    f"运行: python scripts/cursor_cli.py pop"
-                )
-                sub_dispatches.append(SubtaskDispatch(
-                    index=sub.index,
-                    prompt=sub.prompt,
-                    task_type=task_type,
-                    executor="cursor_queue",
-                    model="cursor_queue",
-                    plan_summary=plan.get("summary", ""),
-                    direction=plan.get("direction", ""),
-                    result=result_text,
-                    success=True,
-                    confidence=classification.get("confidence", 0.5),
-                    cursor_task_id=ct.id,
-                ))
-                timeline[-1] = DispatchStep("dispatch", f"Cursor Queue · {ct.id}", "done")
-
             elif executor == "brain_only":
-                result_text = (
-                    f"## 方向\n{plan.get('direction', '')}\n\n"
-                    f"## 说明\n{plan.get('codex_prompt', plan.get('summary', ''))}"
+                sub_dispatches.append(self._dispatch_brain_only(sub, task_type, plan, decision))
+                timeline[-1] = DispatchStep("dispatch", "brain-only response", "skipped")
+            elif executor == "relay_api":
+                relay_result = await self._dispatch_relay_api(sub, task_type, plan, decision)
+                sub_dispatches.append(relay_result)
+                timeline[-1] = DispatchStep(
+                    "dispatch",
+                    f"relay_api {decision.model}",
+                    "done" if relay_result.success else "error",
                 )
-                sub_dispatches.append(SubtaskDispatch(
-                    index=sub.index,
-                    prompt=sub.prompt,
-                    task_type=task_type,
-                    executor="brain_only",
-                    model="deepseek/deepseek-chat",
-                    plan_summary=plan.get("summary", ""),
-                    direction=plan.get("direction", ""),
-                    result=result_text,
-                    success=True,
-                    confidence=classification.get("confidence", 0.5),
-                ))
-                timeline[-1] = DispatchStep("dispatch", "仅规划，未调用 Codex", "skipped")
-
-            else:  # codex
-                codex_prompt = plan.get("codex_prompt") or (
-                    f"Task: {sub.prompt}\n\nDirection:\n{plan.get('direction', '')}"
+            else:
+                codex_result = await self._dispatch_codex(sub, task_type, plan, decision, work)
+                sub_dispatches.append(codex_result)
+                timeline[-1] = DispatchStep(
+                    "dispatch",
+                    f"Codex with {decision.model}",
+                    "done" if codex_result.success else "error",
                 )
-                if not codex_available():
-                    result_text = "[ERROR] Codex CLI 不可用"
-                    success = False
-                    timeline[-1] = DispatchStep("dispatch", "Codex 不可用", "error")
-                else:
-                    cx = await run_codex(codex_prompt, workdir=work)
-                    result_text = cx.output if cx.success else f"[ERROR] {cx.error}"
-                    success = cx.success
-                    timeline[-1] = DispatchStep(
-                        "dispatch",
-                        f"Codex exit {cx.exit_code}",
-                        "done" if success else "error",
-                    )
-
-                sub_dispatches.append(SubtaskDispatch(
-                    index=sub.index,
-                    prompt=sub.prompt,
-                    task_type=task_type,
-                    executor="codex",
-                    model="codex",
-                    plan_summary=plan.get("summary", ""),
-                    direction=plan.get("direction", ""),
-                    result=result_text,
-                    success=success,
-                    confidence=classification.get("confidence", 0.5),
-                ))
 
         steps.append("aggregate")
         return self._aggregate(sub_dispatches, steps, timeline, work, decomp.split)
@@ -240,7 +194,7 @@ class TaskDispatcher:
         if subtask.type_hint:
             return {
                 "task_type": subtask.type_hint,
-                "complexity": 3,
+                "complexity": 2,
                 "confidence": 0.8,
                 "reasoning": f"decomposer type_hint: {subtask.type_hint}",
                 "source": "decomposer",
@@ -248,9 +202,10 @@ class TaskDispatcher:
 
         l1 = classify_l1(subtask.prompt, confidence_threshold=self.l1_threshold)
         if l1 is not None:
+            complexity = 0 if l1.task_type in CURSOR_TYPES and len(subtask.prompt) < 120 else 2
             return {
                 "task_type": l1.task_type,
-                "complexity": 3,
+                "complexity": complexity,
                 "confidence": l1.confidence,
                 "reasoning": l1.reasoning,
                 "source": "L1",
@@ -258,17 +213,25 @@ class TaskDispatcher:
 
         return await classify_l2(subtask.prompt)
 
-    async def _plan(self, prompt: str, task_type: str, classification: dict) -> dict:
+    async def _plan(
+        self,
+        prompt: str,
+        task_type: str,
+        classification: dict,
+        planner_model: str,
+        default_executor: str,
+    ) -> dict:
         from relay_llm import call_llm
 
         user = (
             f"Task type: {task_type}\n"
+            f"Default executor: {default_executor}\n"
             f"Classification: {json.dumps(classification, ensure_ascii=False)}\n"
             f"User task:\n{prompt}"
         )
         try:
             resp = await call_llm(
-                model="deepseek/deepseek-chat",
+                model=planner_model,
                 messages=[
                     {"role": "system", "content": _PLANNER_PROMPT},
                     {"role": "user", "content": user},
@@ -276,21 +239,20 @@ class TaskDispatcher:
                 temperature=0.0,
                 max_tokens=1024,
             )
-            return self._parse_plan(resp.content, task_type)
+            return self._parse_plan(resp.content, task_type, default_executor)
         except Exception as e:
             return {
                 "summary": prompt[:80],
                 "direction": classification.get("reasoning", ""),
                 "codex_prompt": prompt,
-                "executor": self._default_executor(task_type),
+                "executor": default_executor,
                 "priority": "medium",
                 "_fallback_error": str(e),
             }
 
-    def _parse_plan(self, raw: str, task_type: str) -> dict:
-        data = parse_l2_json(raw)  # same JSON extraction
+    def _parse_plan(self, raw: str, task_type: str, default_executor: str) -> dict:
+        data = parse_l2_json(raw)
         if "summary" not in data:
-            # try planner-specific keys
             try:
                 data = json.loads(raw.strip())
             except json.JSONDecodeError:
@@ -306,33 +268,145 @@ class TaskDispatcher:
                 "summary": raw[:120],
                 "direction": raw,
                 "codex_prompt": raw,
-                "executor": self._default_executor(task_type),
+                "executor": default_executor,
                 "priority": "medium",
             }
 
-        data.setdefault("executor", self._default_executor(task_type))
+        data.setdefault("executor", self._default_executor(task_type, default_executor))
         data.setdefault("summary", "")
         data.setdefault("direction", "")
         data.setdefault("codex_prompt", data.get("direction") or raw)
         return data
 
     @staticmethod
-    def _default_executor(task_type: str) -> str:
+    def _planner_model(complexity_tier: str) -> str:
+        return PLAN_FLASH_MODEL if complexity_tier in {"T0", "T1"} else PLAN_PRO_MODEL
+
+    @staticmethod
+    def _default_executor(task_type: str, fallback: str = "codex") -> str:
         if task_type in CURSOR_TYPES:
             return "cursor_queue"
         if task_type in BRAIN_ONLY_TYPES:
             return "brain_only"
-        return "codex"
+        if task_type in RELAY_API_TYPES:
+            return "relay_api"
+        if task_type in CODEX_TYPES:
+            return "codex"
+        return fallback
 
-    def _resolve_executor(self, task_type: str, planned: str) -> str:
+    def _resolve_executor(self, task_type: str, planned: str, routed: str) -> str:
         planned = (planned or "").strip().lower()
+        allowed = {"codex", "cursor_queue", "brain_only", "relay_api"}
         if task_type in CURSOR_TYPES:
             return "cursor_queue"
-        if planned in ("codex", "cursor_queue", "brain_only"):
-            if planned == "brain_only" and task_type in CODEX_TYPES:
-                return "codex"
+        if task_type in BRAIN_ONLY_TYPES:
+            return "brain_only"
+        if task_type in CODEX_TYPES and planned in {"brain_only", "relay_api"}:
+            return "codex"
+        if task_type in RELAY_API_TYPES and planned == "brain_only":
+            return routed
+        if planned in allowed:
             return planned
-        return self._default_executor(task_type)
+        return self._default_executor(task_type, routed)
+
+    def _base_subtask(
+        self,
+        sub: Subtask,
+        task_type: str,
+        executor: str,
+        plan: dict,
+        decision,
+        result: str,
+        success: bool,
+        confidence: float = 0.5,
+        cursor_task_id: str | None = None,
+    ) -> SubtaskDispatch:
+        return SubtaskDispatch(
+            index=sub.index,
+            prompt=sub.prompt,
+            task_type=task_type,
+            executor=executor,
+            model=decision.model if executor != "cursor_queue" else "cursor_queue",
+            plan_summary=plan.get("summary", ""),
+            direction=plan.get("direction", ""),
+            result=result,
+            success=success,
+            confidence=confidence,
+            cursor_task_id=cursor_task_id,
+            primary=decision.primary,
+            fallback=decision.fallback,
+            tier=decision.tier,
+            complexity_tier=decision.complexity_tier,
+            budget_zone=decision.budget_zone,
+        )
+
+    def _dispatch_cursor(self, sub: Subtask, task_type: str, plan: dict, decision) -> SubtaskDispatch:
+        ct = cursor_push(
+            task_type=task_type,
+            instruction=sub.prompt,
+            context=plan.get("direction", ""),
+        )
+        result_text = (
+            "Queued in Cursor Queue\n"
+            f"ID: {ct.id}\n"
+            "Run: python scripts/cursor_cli.py pop"
+        )
+        return self._base_subtask(sub, task_type, "cursor_queue", plan, decision, result_text, True, cursor_task_id=ct.id)
+
+    def _dispatch_brain_only(self, sub: Subtask, task_type: str, plan: dict, decision) -> SubtaskDispatch:
+        result_text = (
+            f"## Direction\n{plan.get('direction', '')}\n\n"
+            f"## Notes\n{plan.get('codex_prompt', plan.get('summary', ''))}"
+        )
+        return self._base_subtask(sub, task_type, "brain_only", plan, decision, result_text, True)
+
+    async def _dispatch_relay_api(self, sub: Subtask, task_type: str, plan: dict, decision) -> SubtaskDispatch:
+        from relay_llm import call_llm
+
+        prompt = plan.get("codex_prompt") or (
+            f"Task: {sub.prompt}\n\nDirection:\n{plan.get('direction', '')}"
+        )
+        try:
+            resp = await call_llm(
+                model=decision.model,
+                messages=[
+                    {"role": "system", "content": "Complete the user task directly. Return only the useful result."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.0,
+                max_tokens=2048,
+            )
+            return self._base_subtask(sub, task_type, "relay_api", plan, decision, resp.content, True)
+        except Exception as e:
+            return self._base_subtask(sub, task_type, "relay_api", plan, decision, f"[ERROR] {e}", False)
+
+    async def _dispatch_codex(
+        self,
+        sub: Subtask,
+        task_type: str,
+        plan: dict,
+        decision,
+        workdir: str,
+    ) -> SubtaskDispatch:
+        codex_prompt = plan.get("codex_prompt") or (
+            f"Task: {sub.prompt}\n\nDirection:\n{plan.get('direction', '')}"
+        )
+        codex_prompt = f"Preferred execution model from router: {decision.model}\n\n{codex_prompt}"
+
+        if not codex_available():
+            return self._base_subtask(
+                sub,
+                task_type,
+                "codex",
+                plan,
+                decision,
+                "[ERROR] Codex CLI is unavailable",
+                False,
+            )
+
+        cx = await run_codex(codex_prompt, workdir=workdir)
+        result_text = cx.output if cx.success else f"[ERROR] {cx.error}"
+        return self._base_subtask(sub, task_type, "codex", plan, decision, result_text, cx.success)
 
     def _aggregate(
         self,
@@ -346,10 +420,10 @@ class TaskDispatcher:
             return DispatchResult(
                 task_type="uncertain",
                 selected_executor="none",
-                reason="无子任务",
+                reason="No subtasks were produced",
                 steps=steps,
                 timeline=timeline,
-                result="未生成任何分发结果。",
+                result="No dispatch result was generated.",
                 cost_level="low",
                 workdir=workdir,
                 codex_available=codex_available(),
@@ -364,21 +438,27 @@ class TaskDispatcher:
         if len(subs) == 1:
             body = subs[0].result
         else:
-            parts = []
-            for s in subs:
-                parts.append(
-                    f"### 子任务 {s.index}: {s.task_type} → {s.executor}\n"
-                    f"**规划:** {s.plan_summary}\n\n{s.result}\n"
+            body = "\n---\n".join(
+                (
+                    f"### Subtask {s.index}: {s.task_type} -> {s.executor}\n"
+                    f"**Plan:** {s.plan_summary}\n\n{s.result}\n"
                 )
-            body = "\n---\n".join(parts)
+                for s in subs
+            )
 
         cost_map = {
-            "architecture": "medium", "system_design": "medium",
-            "deep_reasoning": "high", "implementation": "medium",
-            "debugging": "medium", "refactor": "medium",
-            "boilerplate": "low", "bulk_generation": "low",
-            "data_processing": "low", "code_patch": "low",
-            "file_edit": "low", "uncertain": "medium",
+            "architecture": "high",
+            "system_design": "high",
+            "deep_reasoning": "high",
+            "implementation": "medium",
+            "debugging": "medium",
+            "refactor": "medium",
+            "boilerplate": "low",
+            "bulk_generation": "low",
+            "data_processing": "low",
+            "code_patch": "low",
+            "file_edit": "low",
+            "uncertain": "medium",
         }
         levels = [cost_map.get(t, "medium") for t in types]
         cost_order = {"low": 0, "medium": 1, "high": 2}
@@ -387,7 +467,7 @@ class TaskDispatcher:
         return DispatchResult(
             task_type=main_type,
             selected_executor=main_exec,
-            reason="DeepSeek 规划 → 分发执行（本模块不介入编码）",
+            reason="DeepSeek planned and dispatcher routed to the selected executor",
             steps=steps,
             timeline=timeline,
             result=body,
@@ -400,38 +480,50 @@ class TaskDispatcher:
 
 
 async def dispatch_prompt(prompt: str, *, workdir: str | Path = ".") -> dict:
-    """便捷入口 → JSON dict（供 dashboard API 使用）。"""
-    d = TaskDispatcher()
-    r = await d.dispatch(prompt, workdir=workdir)
+    """Convenience JSON entry point for POST /api/route."""
+    dispatcher = TaskDispatcher()
+    result = await dispatcher.dispatch(prompt, workdir=workdir)
+    selected_model = result.subtasks[0].model if result.subtasks else result.selected_executor
     return {
-        "task_type": r.task_type,
-        "selected_executor": r.selected_executor,
-        "selected_model": r.selected_executor,
-        "reason": r.reason,
-        "steps": r.steps,
+        "task_type": result.task_type,
+        "selected_executor": result.selected_executor,
+        "selected_model": selected_model,
+        "reason": result.reason,
+        "steps": result.steps,
         "timeline": [
             {"phase": t.phase, "detail": t.detail, "status": t.status}
-            for t in r.timeline
+            for t in result.timeline
         ],
-        "result": r.result,
-        "cost_level": r.cost_level,
-        "workdir": r.workdir,
-        "decomposed": r.decomposed,
-        "subtask_count": len(r.subtasks),
-        "codex_available": r.codex_available,
+        "result": result.result,
+        "cost_level": result.cost_level,
+        "workdir": result.workdir,
+        "decomposed": result.decomposed,
+        "subtask_count": len(result.subtasks),
+        "codex_available": result.codex_available,
+        "primary": result.subtasks[0].primary if result.subtasks else selected_model,
+        "fallback": result.subtasks[0].fallback if result.subtasks else [],
+        "executor": result.selected_executor,
+        "tier": result.subtasks[0].tier if result.subtasks else "",
+        "complexity_tier": result.subtasks[0].complexity_tier if result.subtasks else "",
         "subtasks": [
             {
                 "index": s.index,
                 "prompt": s.prompt,
                 "task_type": s.task_type,
                 "executor": s.executor,
+                "model": s.model,
+                "primary": s.primary,
+                "fallback": s.fallback,
+                "tier": s.tier,
+                "complexity_tier": s.complexity_tier,
+                "budget_zone": s.budget_zone,
                 "plan_summary": s.plan_summary,
                 "direction": s.direction,
                 "result": s.result,
                 "success": s.success,
                 "cursor_task_id": s.cursor_task_id,
             }
-            for s in r.subtasks
+            for s in result.subtasks
         ],
     }
 
@@ -440,7 +532,7 @@ if __name__ == "__main__":
     import asyncio
     import sys
 
-    p = sys.argv[1] if len(sys.argv) > 1 else "写一个 hello world 函数"
+    p = sys.argv[1] if len(sys.argv) > 1 else "write a hello world function"
     wd = sys.argv[2] if len(sys.argv) > 2 else "."
     out = asyncio.run(dispatch_prompt(p, workdir=wd))
     print(json.dumps(out, ensure_ascii=False, indent=2))

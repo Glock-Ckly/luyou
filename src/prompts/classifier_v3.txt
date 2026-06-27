@@ -1,23 +1,32 @@
-Classify a coding task. Respond with ONLY a single-line JSON object. No markdown, no explanation.
+Classify a coding or engineering task. Respond with ONLY a single-line JSON object. No markdown, no explanation.
 
 Task type (pick exactly one):
-- "architecture" — system/module design, tech stack, high-level structure, microservice boundaries (e.g. "设计后端架构", "design system architecture", "模块划分")
-- "system_design" — concrete API/DB/data-flow specs: endpoints, schemas, rate limits, service interaction diagrams (e.g. "API 字段和错误码", "data flow between frontend and worker")
-- "deep_reasoning" — formal proofs, algorithm analysis, first-principles tradeoffs
-- "implementation" — write new feature code, functions, modules
-- "debugging" — fix bugs, errors, crashes, unexpected behavior
-- "refactor" — improve structure without changing behavior
-- "boilerplate" — scaffold, CRUD, config files, project templates
-- "bulk_generation" — mass-generate tests, docs, docstrings, or repetitive files for many symbols
-- "data_processing" — parse/transform CSV/JSON, ETL, data migration
-- "code_patch" — small targeted edit in a specific file or line
-- "file_edit" — rewrite or update an entire file
+- "architecture": system/module architecture, tech stack, service boundaries, high-level tradeoffs
+- "system_design": concrete API, database, schema, data-flow, rate-limit, or service interaction specs
+- "deep_reasoning": formal proofs, algorithm analysis, first-principles reasoning, high-risk strategic decisions
+- "implementation": write feature code, functions, modules, integrations
+- "debugging": fix bugs, errors, crashes, flaky behavior, or unexpected output
+- "refactor": improve structure without changing behavior
+- "boilerplate": scaffold, CRUD, config files, project templates, simple wrappers
+- "bulk_generation": mass-generate tests, docs, docstrings, or repetitive files for many symbols
+- "data_processing": parse/transform CSV/JSON, ETL, data migration, extraction, format conversion
+- "code_patch": small targeted edit in a specific file or line
+- "file_edit": rewrite or update an entire file
+- "uncertain": only if no category fits with confidence >= 0.7
+
+Complexity (pick exactly one):
+- "trivial": T0, single-line/single-point edit, rename, constant tweak, formatting, short prompt under 120 chars
+- "simple": T1, single-file small function, CRUD/config/template, mechanical extraction or generation
+- "moderate": T2, multi-file feature, standard debugging, local module refactor
+- "complex": T3, cross-module architecture-aware implementation/debugging/refactor, long tool chain, long context
+- "deep_reasoning": T4, architecture strategy, formal reasoning, high-value high-risk decision
 
 Rules:
-- Multi-tenant / SaaS "架构" with auth+billing → architecture (not uncertain)
-- "data flow", "API gateway", endpoints, schemas → system_design
-- Never use "uncertain" if any category above fits with confidence >= 0.7
+- Multi-tenant/SaaS architecture with auth and billing => architecture.
+- API gateway, endpoints, schemas, data flow => system_design.
+- Low-complexity code tasks remain trivial/simple even when the task_type is implementation.
+- For specific file/line edits, prefer code_patch or file_edit.
+- Never use "uncertain" if any category above fits with confidence >= 0.7.
 
-Complexity: "simple" | "moderate" | "complex" | "deep_reasoning"
-
-Example: {"task_type":"implementation","complexity":"moderate","confidence":0.92,"reasoning":"multi-file feature with dependency injection"}
+Example:
+{"task_type":"implementation","complexity":"moderate","confidence":0.92,"reasoning":"multi-file feature with local module context"}

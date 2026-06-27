@@ -47,7 +47,7 @@ class DecomposerResult:
     split: bool
     subtasks: list[Subtask] = field(default_factory=list)
     reasoning: str = ""
-    model_used: str = "deepseek/deepseek-chat"
+    model_used: str = "deepseek/deepseek-v4-flash"
     cost_usd: float = 0.0
 
 
@@ -97,7 +97,7 @@ async def decompose(
 
     try:
         resp = await call_llm(
-            model="deepseek/deepseek-chat",
+            model="deepseek/deepseek-v4-flash",
             messages=messages,
             temperature=0.0,
             max_tokens=1024,
@@ -130,7 +130,7 @@ async def _parse_decomposer_response(resp, prompt: str, messages: list, call_llm
             },
         ]
         retry = await call_llm(
-            model="deepseek/deepseek-chat",
+            model="deepseek/deepseek-v4-flash",
             messages=retry_messages,
             temperature=0.0,
             max_tokens=1024,
@@ -151,7 +151,7 @@ def _result_from_data(data: dict, prompt: str) -> DecomposerResult:
             split=False,
             subtasks=[Subtask(prompt=prompt, index=0)],
             reasoning=data.get("reasoning", ""),
-            model_used="deepseek/deepseek-chat",
+            model_used="deepseek/deepseek-v4-flash",
             cost_usd=cost,
         )
 
@@ -170,7 +170,7 @@ def _result_from_data(data: dict, prompt: str) -> DecomposerResult:
         split=True,
         subtasks=subtasks,
         reasoning=data.get("reasoning", ""),
-        model_used="deepseek/deepseek-chat",
+        model_used="deepseek/deepseek-v4-flash",
         cost_usd=cost,
     )
 

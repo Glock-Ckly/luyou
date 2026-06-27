@@ -78,7 +78,7 @@ class MultiModelOrchestrator:
     def __init__(
         self,
         l1_threshold: float = 0.7,
-        l2_model: str = "deepseek/deepseek-chat",
+        l2_model: str = "deepseek/deepseek-v4-flash",
     ):
         self.l1_threshold = l1_threshold
         self.l2_model = l2_model

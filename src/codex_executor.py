@@ -24,7 +24,12 @@ class CodexResult:
 
 
 def codex_available() -> bool:
-    return shutil.which("codex") is not None
+    return _codex_bin() is not None
+
+
+def _codex_bin() -> str | None:
+    """Resolve codex executable; Windows needs the .cmd path for subprocess."""
+    return shutil.which("codex")
 
 
 async def run_codex(
@@ -45,7 +50,8 @@ async def run_codex(
             error=f"工作目录不存在: {work}",
         )
 
-    if not codex_available():
+    codex_bin = _codex_bin()
+    if not codex_bin:
         return CodexResult(
             success=False,
             output="",
@@ -60,7 +66,7 @@ async def run_codex(
         out_path = f.name
 
     cmd = [
-        "codex", "exec",
+        codex_bin, "exec",
         "-C", str(work),
         "-o", out_path,
     ]
