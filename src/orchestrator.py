@@ -67,6 +67,7 @@ class OrchestratorResult:
     subtask_results: list[SubtaskResult] = field(default_factory=list)
     cursor_tasks: list[dict] = field(default_factory=list)
     total_cost_usd: float = 0.0
+    trace_id: str = ""
 
 
 class MultiModelOrchestrator:
@@ -84,6 +85,52 @@ class MultiModelOrchestrator:
         self.l2_model = l2_model
 
     async def handle(self, prompt: str) -> OrchestratorResult:
+        from dispatcher import TaskDispatcher
+
+        dispatched = await TaskDispatcher(l1_threshold=self.l1_threshold).dispatch(
+            prompt,
+            workdir=".",
+        )
+        subtask_results = [
+            SubtaskResult(
+                index=subtask.index,
+                prompt=subtask.prompt,
+                task_type=subtask.task_type,
+                model=subtask.model,
+                cost_level=dispatched.cost_level,
+                response_text=subtask.result,
+                confidence=subtask.confidence,
+                validated=subtask.success,
+            )
+            for subtask in dispatched.subtasks
+        ]
+        cursor_tasks = [
+            {
+                "id": subtask.cursor_task_id,
+                "type": subtask.task_type,
+                "instruction": subtask.prompt,
+            }
+            for subtask in dispatched.subtasks
+            if subtask.cursor_task_id
+        ]
+        selected_model = (
+            dispatched.subtasks[0].model
+            if dispatched.subtasks
+            else dispatched.selected_executor
+        )
+        return OrchestratorResult(
+            task_type=dispatched.task_type,
+            selected_model=selected_model,
+            reason=dispatched.reason,
+            steps=dispatched.steps,
+            result=dispatched.result,
+            cost_level=dispatched.cost_level,
+            subtask_results=subtask_results,
+            cursor_tasks=cursor_tasks,
+            trace_id=dispatched.trace_id,
+        )
+
+    async def _handle_legacy(self, prompt: str) -> OrchestratorResult:
         """主入口: 处理一次用户请求。
 
         Args:
@@ -378,6 +425,7 @@ async def handle_prompt(prompt: str) -> dict:
     orch = MultiModelOrchestrator()
     result = await orch.handle(prompt)
     return {
+        "trace_id": result.trace_id,
         "task_type": result.task_type,
         "selected_model": result.selected_model,
         "reason": result.reason,
