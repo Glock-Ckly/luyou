@@ -18,6 +18,9 @@ from codex_executor import codex_available, run_codex
 from cursor_queue import push as cursor_push
 from l1_classifier import classify_l1
 from l2_classifier import classify_l2, parse_l2_json
+from model_router.adapters.providers.litellm_provider import LiteLLMProvider
+from model_router.application.execution_service import ExecutionService
+from model_router.domain.models import ModelId, RetryPolicy, TraceId
 from relay_config import apply_relay_env
 from routing_table import route
 from task_decomposer import DecomposerResult, Subtask, decompose
@@ -61,10 +64,13 @@ class SubtaskDispatch:
     tier: str = ""
     complexity_tier: str = ""
     budget_zone: str = "green"
+    trace_id: str = ""
+    attempts: list[dict] = field(default_factory=list)
 
 
 @dataclass
 class DispatchResult:
+    trace_id: str
     task_type: str
     selected_executor: str
     reason: str
@@ -91,6 +97,7 @@ class TaskDispatcher:
         workdir: str | Path,
     ) -> DispatchResult:
         work = str(Path(workdir).resolve())
+        trace_id = TraceId.new().value
         timeline: list[DispatchStep] = []
         steps: list[str] = []
         sub_dispatches: list[SubtaskDispatch] = []
@@ -153,17 +160,22 @@ class TaskDispatcher:
             timeline.append(DispatchStep("dispatch", f"dispatch to {executor}", "running"))
 
             if executor == "cursor_queue":
-                sub_dispatches.append(self._dispatch_cursor(sub, task_type, plan, decision))
+                sub_dispatches.append(self._dispatch_cursor(sub, task_type, plan, decision, trace_id))
                 timeline[-1] = DispatchStep(
                     "dispatch",
                     f"Cursor Queue {sub_dispatches[-1].cursor_task_id}",
                     "done",
                 )
             elif executor == "brain_only":
-                sub_dispatches.append(self._dispatch_brain_only(sub, task_type, plan, decision))
-                timeline[-1] = DispatchStep("dispatch", "brain-only response", "skipped")
+                brain_result = await self._dispatch_brain_only(sub, task_type, plan, decision, trace_id)
+                sub_dispatches.append(brain_result)
+                timeline[-1] = DispatchStep(
+                    "dispatch",
+                    f"brain provider {brain_result.model}",
+                    "done" if brain_result.success else "error",
+                )
             elif executor == "relay_api":
-                relay_result = await self._dispatch_relay_api(sub, task_type, plan, decision)
+                relay_result = await self._dispatch_relay_api(sub, task_type, plan, decision, trace_id)
                 sub_dispatches.append(relay_result)
                 timeline[-1] = DispatchStep(
                     "dispatch",
@@ -171,7 +183,7 @@ class TaskDispatcher:
                     "done" if relay_result.success else "error",
                 )
             else:
-                codex_result = await self._dispatch_codex(sub, task_type, plan, decision, work)
+                codex_result = await self._dispatch_codex(sub, task_type, plan, decision, work, trace_id)
                 sub_dispatches.append(codex_result)
                 timeline[-1] = DispatchStep(
                     "dispatch",
@@ -180,7 +192,7 @@ class TaskDispatcher:
                 )
 
         steps.append("aggregate")
-        return self._aggregate(sub_dispatches, steps, timeline, work, decomp.split)
+        return self._aggregate(sub_dispatches, steps, timeline, work, decomp.split, trace_id)
 
     async def _decompose(self, prompt: str) -> DecomposerResult:
         from relay_llm import call_llm
@@ -320,13 +332,16 @@ class TaskDispatcher:
         success: bool,
         confidence: float = 0.5,
         cursor_task_id: str | None = None,
+        trace_id: str = "",
+        model: str | None = None,
+        attempts: list[dict] | None = None,
     ) -> SubtaskDispatch:
         return SubtaskDispatch(
             index=sub.index,
             prompt=sub.prompt,
             task_type=task_type,
             executor=executor,
-            model=decision.model if executor != "cursor_queue" else "cursor_queue",
+            model=model or (decision.model if executor != "cursor_queue" else "cursor_queue"),
             plan_summary=plan.get("summary", ""),
             direction=plan.get("direction", ""),
             result=result,
@@ -338,9 +353,18 @@ class TaskDispatcher:
             tier=decision.tier,
             complexity_tier=decision.complexity_tier,
             budget_zone=decision.budget_zone,
+            trace_id=trace_id,
+            attempts=attempts or [],
         )
 
-    def _dispatch_cursor(self, sub: Subtask, task_type: str, plan: dict, decision) -> SubtaskDispatch:
+    def _dispatch_cursor(
+        self,
+        sub: Subtask,
+        task_type: str,
+        plan: dict,
+        decision,
+        trace_id: str,
+    ) -> SubtaskDispatch:
         ct = cursor_push(
             task_type=task_type,
             instruction=sub.prompt,
@@ -351,34 +375,114 @@ class TaskDispatcher:
             f"ID: {ct.id}\n"
             "Run: python scripts/cursor_cli.py pop"
         )
-        return self._base_subtask(sub, task_type, "cursor_queue", plan, decision, result_text, True, cursor_task_id=ct.id)
-
-    def _dispatch_brain_only(self, sub: Subtask, task_type: str, plan: dict, decision) -> SubtaskDispatch:
-        result_text = (
-            f"## Direction\n{plan.get('direction', '')}\n\n"
-            f"## Notes\n{plan.get('codex_prompt', plan.get('summary', ''))}"
+        return self._base_subtask(
+            sub,
+            task_type,
+            "cursor_queue",
+            plan,
+            decision,
+            result_text,
+            True,
+            cursor_task_id=ct.id,
+            trace_id=trace_id,
         )
-        return self._base_subtask(sub, task_type, "brain_only", plan, decision, result_text, True)
 
-    async def _dispatch_relay_api(self, sub: Subtask, task_type: str, plan: dict, decision) -> SubtaskDispatch:
-        from relay_llm import call_llm
+    async def _dispatch_brain_only(
+        self,
+        sub: Subtask,
+        task_type: str,
+        plan: dict,
+        decision,
+        trace_id: str,
+    ) -> SubtaskDispatch:
+        return await self._dispatch_provider(
+            sub,
+            task_type,
+            "brain_only",
+            plan,
+            decision,
+            trace_id,
+        )
 
+    async def _dispatch_relay_api(
+        self,
+        sub: Subtask,
+        task_type: str,
+        plan: dict,
+        decision,
+        trace_id: str,
+    ) -> SubtaskDispatch:
+        return await self._dispatch_provider(
+            sub,
+            task_type,
+            "relay_api",
+            plan,
+            decision,
+            trace_id,
+        )
+
+    async def _dispatch_provider(
+        self,
+        sub: Subtask,
+        task_type: str,
+        executor: str,
+        plan: dict,
+        decision,
+        trace_id: str,
+    ) -> SubtaskDispatch:
         prompt = plan.get("codex_prompt") or (
             f"Task: {sub.prompt}\n\nDirection:\n{plan.get('direction', '')}"
         )
-        try:
-            resp = await call_llm(
-                model=decision.model,
-                messages=[
-                    {"role": "system", "content": "Complete the user task directly. Return only the useful result."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.0,
-                max_tokens=2048,
+        candidates = [
+            ModelId.parse(model)
+            for model in [decision.primary, *decision.fallback]
+            if model != "cursor_queue"
+        ]
+        service = ExecutionService(
+            LiteLLMProvider(),
+            RetryPolicy(max_retries=1),
+            timeout_seconds=120,
+        )
+        execution = await service.execute(
+            trace_id=TraceId(trace_id),
+            prompt=prompt,
+            candidates=candidates,
+        )
+        attempts = [
+            {
+                "model": attempt.model_id.value,
+                "attempt": attempt.attempt,
+                "status": attempt.status,
+                "action": attempt.action,
+                "error_type": attempt.error_type,
+                "latency_ms": attempt.latency_ms,
+            }
+            for attempt in execution.attempts
+        ]
+        if execution.response:
+            return self._base_subtask(
+                sub,
+                task_type,
+                executor,
+                plan,
+                decision,
+                execution.response.content,
+                True,
+                trace_id=trace_id,
+                model=execution.response.model_id.value,
+                attempts=attempts,
             )
-            return self._base_subtask(sub, task_type, "relay_api", plan, decision, resp.content, True)
-        except Exception as e:
-            return self._base_subtask(sub, task_type, "relay_api", plan, decision, f"[ERROR] {e}", False)
+        return self._base_subtask(
+            sub,
+            task_type,
+            executor,
+            plan,
+            decision,
+            f"[ERROR:{execution.final_error_type}] {execution.outcome}",
+            False,
+            trace_id=trace_id,
+            attempts=attempts,
+        )
 
     async def _dispatch_codex(
         self,
@@ -387,6 +491,7 @@ class TaskDispatcher:
         plan: dict,
         decision,
         workdir: str,
+        trace_id: str,
     ) -> SubtaskDispatch:
         codex_prompt = plan.get("codex_prompt") or (
             f"Task: {sub.prompt}\n\nDirection:\n{plan.get('direction', '')}"
@@ -402,11 +507,21 @@ class TaskDispatcher:
                 decision,
                 "[ERROR] Codex CLI is unavailable",
                 False,
+                trace_id=trace_id,
             )
 
         cx = await run_codex(codex_prompt, workdir=workdir)
         result_text = cx.output if cx.success else f"[ERROR] {cx.error}"
-        return self._base_subtask(sub, task_type, "codex", plan, decision, result_text, cx.success)
+        return self._base_subtask(
+            sub,
+            task_type,
+            "codex",
+            plan,
+            decision,
+            result_text,
+            cx.success,
+            trace_id=trace_id,
+        )
 
     def _aggregate(
         self,
@@ -415,9 +530,11 @@ class TaskDispatcher:
         timeline: list[DispatchStep],
         workdir: str,
         decomposed: bool,
+        trace_id: str,
     ) -> DispatchResult:
         if not subs:
             return DispatchResult(
+                trace_id=trace_id,
                 task_type="uncertain",
                 selected_executor="none",
                 reason="No subtasks were produced",
@@ -465,6 +582,7 @@ class TaskDispatcher:
         main_cost = max(levels, key=lambda x: cost_order.get(x, 0))
 
         return DispatchResult(
+            trace_id=trace_id,
             task_type=main_type,
             selected_executor=main_exec,
             reason="DeepSeek planned and dispatcher routed to the selected executor",
@@ -485,6 +603,7 @@ async def dispatch_prompt(prompt: str, *, workdir: str | Path = ".") -> dict:
     result = await dispatcher.dispatch(prompt, workdir=workdir)
     selected_model = result.subtasks[0].model if result.subtasks else result.selected_executor
     return {
+        "trace_id": result.trace_id,
         "task_type": result.task_type,
         "selected_executor": result.selected_executor,
         "selected_model": selected_model,
@@ -522,6 +641,8 @@ async def dispatch_prompt(prompt: str, *, workdir: str | Path = ".") -> dict:
                 "result": s.result,
                 "success": s.success,
                 "cursor_task_id": s.cursor_task_id,
+                "trace_id": s.trace_id,
+                "attempts": s.attempts,
             }
             for s in result.subtasks
         ],
