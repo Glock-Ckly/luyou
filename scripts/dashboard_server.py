@@ -260,9 +260,15 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def _cors(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
+        _src_imports()
+        from model_router.adapters.http.gateway import GatewayConfig, allowed_origin
+
+        origin = allowed_origin(self.headers.get("Origin"), GatewayConfig.from_env(ROOT))
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
 
     def _json_response(self, status: int, payload: dict):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -274,12 +280,28 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _read_json(self) -> dict:
+        _src_imports()
+        from model_router.adapters.http.gateway import GatewayRequestError
+
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length).decode("utf-8") if length else "{}"
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
-            raise ValueError("invalid JSON") from None
+            raise GatewayRequestError(400, "invalid_json", "Request body is not valid JSON") from None
+
+    def _authorize(self):
+        _src_imports()
+        from model_router.adapters.http.gateway import GatewayConfig, authorize
+
+        authorize(self.headers, GatewayConfig.from_env(ROOT))
+
+    def _safe_error(self, error: Exception):
+        _src_imports()
+        from model_router.adapters.http.gateway import safe_error_payload
+
+        status, payload = safe_error_payload(error)
+        self._json_response(status, payload)
 
     def _static_response(self, request_path: str):
         relative = "index.html" if request_path in ("", "/") else unquote(request_path.lstrip("/"))
@@ -312,17 +334,15 @@ class Handler(BaseHTTPRequestHandler):
         except (ConnectionAbortedError, BrokenPipeError):
             pass
         except Exception as error:
-            self._json_response(500, {"error": str(error)})
+            self._safe_error(error)
 
     def do_POST(self):
         try:
             self._do_post()
         except (ConnectionAbortedError, BrokenPipeError):
             pass
-        except ValueError as error:
-            self._json_response(400, {"error": str(error)})
         except Exception as error:
-            self._json_response(500, {"error": str(error)})
+            self._safe_error(error)
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -331,6 +351,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _do_get(self):
         path = urlparse(self.path).path
+
+        if path == "/health":
+            self._json_response(200, {"status": "ok", "service": "luyou-model-router"})
+            return
+
+        if path.startswith("/api/"):
+            self._authorize()
 
         if path == "/api/meta":
             self._json_response(200, build_meta())
@@ -352,7 +379,27 @@ class Handler(BaseHTTPRequestHandler):
 
     def _do_post(self):
         path = urlparse(self.path).path
+        if path.startswith("/api/") or path.startswith("/v1/"):
+            self._authorize()
         body = self._read_json()
+
+        if path == "/v1/chat/completions":
+            _src_imports()
+            from model_router.adapters.http.gateway import (
+                GatewayConfig,
+                format_chat_completion,
+                parse_chat_completion,
+                resolve_workdir,
+            )
+
+            prompt, requested_model = parse_chat_completion(body)
+            workdir = resolve_workdir(body.get("workdir"), GatewayConfig.from_env(ROOT))
+            result = _run_dispatch(prompt, str(workdir))
+            self._json_response(
+                200,
+                format_chat_completion(result, requested_model=requested_model),
+            )
+            return
 
         if path == "/api/reliability/simulate":
             self._json_response(200, simulate_reliability(body))
@@ -366,8 +413,11 @@ class Handler(BaseHTTPRequestHandler):
         if not prompt:
             raise ValueError("prompt is required")
 
-        workdir = (body.get("workdir") or str(ROOT)).strip()
-        result = _run_dispatch(prompt, workdir)
+        _src_imports()
+        from model_router.adapters.http.gateway import GatewayConfig, resolve_workdir
+
+        workdir = resolve_workdir(body.get("workdir"), GatewayConfig.from_env(ROOT))
+        result = _run_dispatch(prompt, str(workdir))
         self._json_response(200, result)
 
 
@@ -375,8 +425,8 @@ def main():
     host = "127.0.0.1"
     server = ThreadingHTTPServer((host, PORT), Handler)
     print(f"luyou five-page demo -> http://{host}:{PORT}")
-    print("API -> GET /api/meta | /api/catalog | /api/specs")
-    print("API -> POST /api/route | /api/reliability/simulate")
+    print("API -> GET /health | /api/meta | /api/catalog | /api/specs")
+    print("API -> POST /v1/chat/completions | /api/route | /api/reliability/simulate")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
