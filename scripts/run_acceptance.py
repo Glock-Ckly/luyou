@@ -16,6 +16,7 @@ SCRIPTS = [
     "eval_e2e.py",
     "test_budget_adapter.py",
     "test_cursor_cli.py",
+    "test_dashboard_demo.py",
 ]
 
 

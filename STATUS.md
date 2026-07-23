@@ -1,5 +1,19 @@
 # 多模型路由系统 — 实施状态
-> 2026-06-14 全部里程碑完成
+> 2026-07-23 五页 AI Model Router Demo 已落地
+
+---
+
+## 五页 Demo
+
+- Command Center：运行状态、Git、预算、Provider、Model 与路由统计
+- Routing Lab：真实任务分类、规划、模型选择与执行器分发
+- Provider Registry：运行时模型目录、成本、Tier 与 Provider Contract
+- Reliability Lab：Retry / Fallback 故障注入、标准错误与 Trace ID
+- Architecture & Specs：DDD 边界、请求生命周期、ADR 与质量门禁
+
+启动命令：python scripts/dashboard_server.py
+
+新增接口：GET /api/catalog、GET /api/specs、POST /api/reliability/simulate
 
 ---
 
