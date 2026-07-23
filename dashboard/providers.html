@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Provider Registry · luyou</title><link rel="stylesheet" href="assets/styles.css"></head>
+<body data-page="providers"><header data-header></header><main class="shell">
+  <section class="hero"><div><p class="eyebrow">Page 03 / Provider Registry</p><h1>统一 Contract，隔离每一家模型供应商。</h1><p class="lede">模型目录直接来自 <code>routing_table.py</code>。成本、Tier 与路由引用次数不在前端重复维护，因此新增模型时页面自然同步。</p></div><aside class="hero-note"><strong>Runtime catalog</strong><span><b id="provider-count">—</b> Providers · <b id="model-count">—</b> Models</span><br>Adapter changes, Routing stays stable.</aside></section>
+  <section class="section"><div class="section-head"><div><p class="eyebrow">Model catalog</p><h2>Provider 与模型目录</h2></div><p>价格单位为每百万 Token；Routes 表示模型在当前 Task × Complexity 候选链中的引用次数。</p></div><div class="grid grid-2" id="provider-grid"></div></section>
+  <section class="section grid grid-2">
+    <article class="card accent-card"><p class="eyebrow">Provider contract</p><h2>所有 Adapter 必须满足</h2><ul class="check-list" id="provider-contract"></ul></article>
+    <article class="card"><p class="eyebrow">Extension path</p><h2>新增 Provider</h2><div class="flow" style="grid-template-columns:repeat(2,1fr)"><div class="flow-step"><strong>01 Adapter</strong>映射统一请求</div><div class="flow-step"><strong>02 Contract Test</strong>验证成功与错误</div><div class="flow-step"><strong>03 Register</strong>加入模型目录</div><div class="flow-step"><strong>04 Route</strong>配置候选链</div></div><p class="card-muted" style="margin-top:20px">目标：新增 Provider 不修改核心 Routing Domain。</p></article>
+  </section>
+</main><footer data-footer></footer><div class="toast"></div><script src="assets/app.js"></script></body></html>

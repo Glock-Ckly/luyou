@@ -1,0 +1,21 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reliability Lab · luyou</title><link rel="stylesheet" href="assets/styles.css"></head>
+<body data-page="reliability"><header data-header></header><main class="shell">
+  <section class="hero"><div><p class="eyebrow">Page 04 / Reliability Lab</p><h1>把故障变成一条可复现的路径。</h1><p class="lede">选择任务上下文和故障模型，后端将使用真实路由策略生成候选链，并确定性执行 Error Classification、Retry 与 Fallback。</p></div><aside class="hero-note"><strong>Trace</strong><span id="trace-id">等待演练</span><br>每次请求生成独立 Trace ID。</aside></section>
+  <section class="grid grid-2">
+    <article class="card accent-card"><p class="eyebrow">Fault injection</p><h2>演练配置</h2>
+      <div class="form-grid">
+        <div class="field"><label for="reliability-task">Task type</label><select id="reliability-task"></select></div>
+        <div class="field"><label for="reliability-complexity">Complexity</label><select id="reliability-complexity"><option>T0</option><option>T1</option><option selected>T2</option><option>T3</option><option>T4</option></select></div>
+        <div class="field"><label for="failure-mode">Failure mode</label><select id="failure-mode"><option value="provider_unavailable">Provider unavailable</option><option value="timeout">Timeout</option><option value="rate_limit">Rate limit</option><option value="authentication">Authentication</option></select></div>
+        <div class="field"><label for="reliability-budget">Budget pressure · <span id="budget-output">20%</span></label><input id="reliability-budget" type="range" min="0" max="1" step="0.05" value="0.2"></div>
+        <div class="field wide"><label>模拟失败的模型</label><div class="actions" id="failed-models"></div></div>
+      </div>
+      <div class="actions"><button class="button" id="reliability-submit">运行故障演练</button><label class="pill" style="text-transform:none;letter-spacing:0"><input id="retry-once" type="checkbox" checked style="width:auto;height:auto"> 每个可重试错误重试一次</label></div>
+    </article>
+    <article class="card"><p class="eyebrow">Outcome</p><h2>恢复结果</h2><div class="row"><span>Outcome</span><strong id="reliability-outcome">—</strong></div><div class="row"><span>Selected model</span><strong id="reliability-selected">—</strong></div><div><span class="metric-label">Candidate chain</span><pre class="code" id="candidate-chain">—</pre></div></article>
+  </section>
+  <section class="section grid grid-2">
+    <article class="card"><p class="eyebrow">Execution trace</p><h2>Retry / Fallback 时间线</h2><div class="timeline" id="reliability-timeline"><div class="empty">等待故障演练。</div></div></article>
+    <article class="card"><p class="eyebrow">Policy</p><h2>错误如何被分类</h2><div class="stack"><div class="row"><div><strong>Timeout / Rate limit</strong><p>允许有限重试，耗尽后进入下一候选。</p></div><span class="badge amber">Retry</span></div><div class="row"><div><strong>Provider unavailable</strong><p>尝试恢复后执行 Provider Fallback。</p></div><span class="badge blue">Fallback</span></div><div class="row"><div><strong>Authentication</strong><p>不可重试，立即返回标准化错误。</p></div><span class="badge red">Fail fast</span></div></div></article>
+  </section>
+</main><footer data-footer></footer><div class="toast"></div><script src="assets/app.js"></script></body></html>
