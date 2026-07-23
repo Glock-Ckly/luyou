@@ -51,6 +51,7 @@ class DashboardDemoTests(unittest.TestCase):
         self.assertEqual("success", result["outcome"])
         self.assertNotEqual(primary, result["selected_model"])
         self.assertEqual(["retry", "fallback"], [attempt["action"] for attempt in result["attempts"][:2]])
+        self.assertEqual(result["trace_id"], result["execution_trace_id"])
 
     def test_authentication_failure_is_fail_fast(self):
         baseline = simulate_reliability({"task_type": "architecture", "complexity": "T4"})
@@ -61,7 +62,8 @@ class DashboardDemoTests(unittest.TestCase):
             "failure_mode": "authentication",
             "failed_models": [primary],
         })
-        self.assertEqual("all_providers_failed", result["outcome"])
+        self.assertEqual("failed", result["outcome"])
+        self.assertEqual("provider_authentication", result["final_error_type"])
         self.assertEqual(1, len(result["attempts"]))
 
 

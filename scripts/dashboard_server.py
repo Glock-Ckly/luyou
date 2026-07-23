@@ -8,8 +8,6 @@ import json
 import mimetypes
 import subprocess
 import sys
-import time
-import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -196,6 +194,9 @@ def build_specs() -> dict:
 
 def simulate_reliability(payload: dict) -> dict:
     _src_imports()
+    from model_router.adapters.providers.fault_injecting_provider import FaultInjectingProvider
+    from model_router.application.execution_service import ExecutionService
+    from model_router.domain.models import ModelId, RetryPolicy, TraceId
     from routing_table import route
 
     task_type = str(payload.get("task_type") or "implementation")
@@ -206,54 +207,40 @@ def simulate_reliability(payload: dict) -> dict:
         raise ValueError("budget_ratio must be a number between 0 and 1") from None
 
     failure_mode = str(payload.get("failure_mode") or "provider_unavailable")
-    if failure_mode not in {"provider_unavailable", "timeout", "rate_limit", "authentication"}:
-        raise ValueError("unsupported failure_mode")
-
     failed_models = {str(model) for model in payload.get("failed_models", [])}
     retry_once = bool(payload.get("retry_once", True))
     decision = route(task_type, complexity=complexity, budget_ratio=budget_ratio)
     candidates = list(dict.fromkeys([decision.primary, *decision.fallback]))
-    trace_id = f"tr_{uuid.uuid4().hex[:12]}"
-    attempts = []
-    retryable = failure_mode in {"timeout", "rate_limit", "provider_unavailable"}
-    selected_model = None
-
-    for candidate_index, model in enumerate(candidates):
-        started = time.perf_counter()
-        if model not in failed_models:
-            attempts.append({
-                "model": model,
-                "attempt": 1,
-                "status": "success",
-                "error_type": None,
-                "action": "return_response",
-                "latency_ms": max(1, round((time.perf_counter() - started) * 1000)),
-            })
-            selected_model = model
-            break
-
-        attempts.append({
-            "model": model,
-            "attempt": 1,
-            "status": "failed",
-            "error_type": failure_mode,
-            "action": "retry" if retry_once and retryable else "fallback",
-            "latency_ms": max(1, round((time.perf_counter() - started) * 1000)),
-        })
-        if retry_once and retryable:
-            attempts.append({
-                "model": model,
-                "attempt": 2,
-                "status": "failed",
-                "error_type": failure_mode,
-                "action": "fallback" if candidate_index < len(candidates) - 1 else "fail",
-                "latency_ms": 2,
-            })
-        if not retryable:
-            break
+    trace_id = TraceId.new()
+    execution = asyncio.run(
+        ExecutionService(
+            FaultInjectingProvider(
+                failed_models=failed_models,
+                failure_mode=failure_mode,
+            ),
+            RetryPolicy(max_retries=1 if retry_once else 0),
+            timeout_seconds=1,
+        ).execute(
+            trace_id=trace_id,
+            prompt="reliability fault-injection scenario",
+            candidates=[ModelId.parse(model) for model in candidates],
+        )
+    )
+    attempts = [
+        {
+            "model": attempt.model_id.value,
+            "attempt": attempt.attempt,
+            "status": attempt.status,
+            "error_type": attempt.error_type,
+            "action": attempt.action,
+            "latency_ms": attempt.latency_ms,
+        }
+        for attempt in execution.attempts
+    ]
 
     return {
-        "trace_id": trace_id,
+        "trace_id": trace_id.value,
+        "execution_trace_id": execution.trace_id.value,
         "task_type": decision.task_type,
         "complexity": decision.complexity,
         "budget_zone": decision.budget_zone,
@@ -262,8 +249,9 @@ def simulate_reliability(payload: dict) -> dict:
         "failed_models": sorted(failed_models),
         "failure_mode": failure_mode,
         "attempts": attempts,
-        "selected_model": selected_model,
-        "outcome": "success" if selected_model else "all_providers_failed",
+        "selected_model": execution.selected_model.value if execution.selected_model else None,
+        "outcome": execution.outcome,
+        "final_error_type": execution.final_error_type,
     }
 
 
