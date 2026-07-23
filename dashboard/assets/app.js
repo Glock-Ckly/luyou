@@ -118,7 +118,7 @@ async function initRouting() {
         body: JSON.stringify({prompt, workdir: workdir.value.trim() || undefined}),
       });
       setText('route-task', data.task_type);
-      setText('route-complexity', data.complexity);
+      setText('route-complexity', data.complexity || data.complexity_tier);
       setText('route-model', formatModel(data.selected_model));
       setText('route-executor', data.selected_executor);
       renderTimeline(document.getElementById('route-timeline'), data.timeline || []);
