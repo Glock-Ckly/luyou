@@ -6,4 +6,5 @@ services:
     environment:
       MODEL_ROUTER_API_TOKEN: ""
       MODEL_ROUTER_ALLOWED_ORIGINS: "http://127.0.0.1:1785,http://localhost:1785"
+      MODEL_ROUTER_RATE_LIMIT_PER_MINUTE: "120"
     restart: unless-stopped

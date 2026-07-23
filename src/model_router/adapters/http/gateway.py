@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 import time
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from typing import Mapping
 
 
@@ -23,6 +25,7 @@ class GatewayConfig:
         "http://127.0.0.1:1785",
         "http://localhost:1785",
     )
+    rate_limit_per_minute: int = 120
 
     @classmethod
     def from_env(cls, root: Path) -> "GatewayConfig":
@@ -41,7 +44,27 @@ class GatewayConfig:
             api_token=os.environ.get("MODEL_ROUTER_API_TOKEN", "").strip(),
             allowed_workdirs=workdirs or (root.resolve(),),
             allowed_origins=origins,
+            rate_limit_per_minute=max(
+                1, int(os.environ.get("MODEL_ROUTER_RATE_LIMIT_PER_MINUTE", "120"))
+            ),
         )
+
+
+class InMemoryRateLimiter:
+    def __init__(self):
+        self._requests = defaultdict(deque)
+        self._lock = Lock()
+
+    def check(self, key: str, config: GatewayConfig, *, now: float | None = None) -> None:
+        current = time.time() if now is None else now
+        cutoff = current - 60
+        with self._lock:
+            timestamps = self._requests[key]
+            while timestamps and timestamps[0] <= cutoff:
+                timestamps.popleft()
+            if len(timestamps) >= config.rate_limit_per_minute:
+                raise GatewayRequestError(429, "rate_limit_exceeded", "Request rate limit exceeded")
+            timestamps.append(current)
 
 
 def authorize(headers: Mapping[str, str], config: GatewayConfig) -> None:

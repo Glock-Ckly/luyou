@@ -16,6 +16,7 @@ from urllib.parse import unquote, urlparse
 ROOT = Path(__file__).resolve().parent.parent
 DASHBOARD = ROOT / "dashboard"
 PORT = int(os.environ.get("MODEL_ROUTER_PORT", "1785"))
+_RATE_LIMITER = None
 
 
 def _src_imports():
@@ -328,6 +329,15 @@ class Handler(BaseHTTPRequestHandler):
 
         authorize(self.headers, GatewayConfig.from_env(ROOT))
 
+    def _rate_limit(self):
+        global _RATE_LIMITER
+        _src_imports()
+        from model_router.adapters.http.gateway import GatewayConfig, InMemoryRateLimiter
+
+        if _RATE_LIMITER is None:
+            _RATE_LIMITER = InMemoryRateLimiter()
+        _RATE_LIMITER.check(self.client_address[0], GatewayConfig.from_env(ROOT))
+
     def _safe_error(self, error: Exception):
         _src_imports()
         from model_router.adapters.http.gateway import safe_error_payload
@@ -390,6 +400,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.startswith("/api/"):
             self._authorize()
+            self._rate_limit()
 
         if path == "/api/meta":
             self._json_response(200, build_meta())
@@ -417,6 +428,7 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path.startswith("/api/") or path.startswith("/v1/"):
             self._authorize()
+            self._rate_limit()
         body = self._read_json()
 
         if path == "/v1/chat/completions":

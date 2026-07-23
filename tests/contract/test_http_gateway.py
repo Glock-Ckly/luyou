@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from model_router.adapters.http.gateway import (
     GatewayConfig,
     GatewayRequestError,
+    InMemoryRateLimiter,
     authorize,
     format_chat_completion,
     parse_chat_completion,
@@ -68,6 +69,17 @@ class HttpGatewayContractTests(unittest.TestCase):
         self.assertEqual(500, status)
         self.assertNotIn("top-secret", str(payload))
         self.assertEqual("internal_error", payload["error"]["code"])
+
+    def test_rate_limit_returns_normalized_429(self):
+        limiter = InMemoryRateLimiter()
+        config = GatewayConfig(rate_limit_per_minute=2)
+        limiter.check("client-a", config, now=100)
+        limiter.check("client-a", config, now=101)
+        with self.assertRaises(GatewayRequestError) as caught:
+            limiter.check("client-a", config, now=102)
+        self.assertEqual(429, caught.exception.status)
+        self.assertEqual("rate_limit_exceeded", caught.exception.code)
+        limiter.check("client-a", config, now=161)
 
 
 if __name__ == "__main__":
