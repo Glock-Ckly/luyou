@@ -1,0 +1,4 @@
+interface:
+  display_name: "Provider Adapter Contract"
+  short_description: "Add model providers behind a stable port"
+  default_prompt: "Use $provider-adapter-contract to add or audit a provider adapter with contract tests and error mapping."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Router Reliability Audit"
+  short_description: "Audit retries fallbacks traces and metrics"
+  default_prompt: "Use $router-reliability-audit to verify router reliability through the production execution path."

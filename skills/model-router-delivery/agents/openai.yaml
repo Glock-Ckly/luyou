@@ -1,0 +1,4 @@
+interface:
+  display_name: "Model Router Delivery"
+  short_description: "Enforce evidence-based DDD and TDD delivery"
+  default_prompt: "Use $model-router-delivery to deliver a router change through specification, tests, assessment, commit, and push."
