@@ -47,5 +47,4 @@ Partial:
 
 ## Commit
 
-Recorded after the implementation commit is pushed.
-
+Implementation commit: 9146d52.
