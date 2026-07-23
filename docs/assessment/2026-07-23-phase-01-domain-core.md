@@ -62,5 +62,4 @@ Partial:
 
 ## Commit
 
-Recorded by the phase commit and follow-up assessment metadata update.
-
+Implementation commit: 4a8e74b.
