@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import mimetypes
+import os
 import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,7 +15,7 @@ from urllib.parse import unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 DASHBOARD = ROOT / "dashboard"
-PORT = 1785
+PORT = int(os.environ.get("MODEL_ROUTER_PORT", "1785"))
 
 
 def _src_imports():
@@ -457,7 +458,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    host = "127.0.0.1"
+    host = os.environ.get("MODEL_ROUTER_HOST", "127.0.0.1")
     server = ThreadingHTTPServer((host, PORT), Handler)
     print(f"luyou five-page demo -> http://{host}:{PORT}")
     print("API -> GET /health | /api/meta | /api/catalog | /api/specs | /api/metrics")

@@ -1,28 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Routing Lab · luyou</title><link rel="stylesheet" href="assets/styles.css"></head>
-<body data-page="routing"><header data-header></header><main class="shell">
-  <section class="hero"><div><p class="eyebrow">Page 02 / Routing Lab</p><h1>看见一次任务，如何成为一次决策。</h1><p class="lede">这里调用仓库真实的 <code>/api/route</code>：Task Decomposer、L1/L2 分类、预算路由和执行器分发都在实际链路中运行。</p></div><aside class="hero-note"><strong>Source of truth</strong><span id="route-git">读取版本中…</span><br>Prompt → Classifier → Router → Executor</aside></section>
-  <section class="grid grid-2">
-    <article class="card accent-card">
-      <p class="eyebrow">Input</p><h2>提交任务</h2>
-      <div class="form-grid">
-        <div class="field wide"><label for="route-prompt">任务描述</label><textarea id="route-prompt">设计一个支持 Provider Fallback 的统一 AI API，并说明关键边界。</textarea></div>
-        <div class="field wide"><label for="route-workdir">工作目录</label><input id="route-workdir" type="text"></div>
-      </div>
-      <div class="actions"><button class="button" id="route-submit">分发任务</button><span class="pill">真实后端链路</span><span class="pill">Cursor Queue <strong id="queue-count">0</strong></span></div>
-    </article>
-    <article class="card">
-      <p class="eyebrow">Routing decision</p><h2>决策快照</h2>
-      <div class="grid grid-2">
-        <div><span class="metric-label">Task type</span><strong class="metric-value" id="route-task">—</strong></div>
-        <div><span class="metric-label">Complexity</span><strong class="metric-value" id="route-complexity">—</strong></div>
-      </div>
-      <div class="row"><span>Selected model</span><strong id="route-model">—</strong></div>
-      <div class="row"><span>Executor</span><strong id="route-executor">—</strong></div>
-    </article>
-  </section>
-  <section class="section grid grid-2">
-    <article class="card"><p class="eyebrow">Timeline</p><h2>请求时间线</h2><div class="timeline" id="route-timeline"><div class="empty">等待提交任务。</div></div></article>
-    <article class="card"><p class="eyebrow">Normalized response</p><h2>执行结果</h2><pre class="code" id="route-result">结果将在这里显示。</pre></article>
-  </section>
-  <section class="section"><div class="section-head"><div><p class="eyebrow">Decomposition</p><h2>子任务与执行器</h2></div><p>复杂任务会被拆分，每个子任务保留自己的类型、模型和执行状态。</p></div><div class="grid grid-2" id="route-subtasks"><div class="empty">尚无子任务。</div></div></section>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>路由实验室 · luyou</title><link rel="stylesheet" href="assets/styles.css"></head><body data-page="routing"><header data-header></header><main class="shell">
+<section class="hero"><div><p class="eyebrow">Page 02 / 路由实验室</p><h1>从任务输入到真实执行。</h1><p class="lede">调用统一 Dispatcher，展示分类、模型选择、Trace ID、执行时间线和 Provider 尝试链。</p></div><aside class="hero-note"><strong>安全边界</strong>工作目录只能位于服务端允许的根目录内。</aside></section>
+<section class="section grid grid-2"><article class="card"><label class="field"><span>任务描述</span><textarea id="route-prompt" rows="7">设计一个支持重试与降级的订单缓存方案</textarea></label><label class="field"><span>工作目录</span><input id="route-workdir"></label><button class="button" id="route-submit">开始路由</button></article><article class="card"><p class="eyebrow">Decision</p><h2>路由结果</h2><div class="row"><span>Trace ID</span><strong id="route-trace">—</strong></div><div class="row"><span>任务类型</span><strong id="route-task">—</strong></div><div class="row"><span>模型</span><strong id="route-model">—</strong></div><div class="row"><span>执行器</span><strong id="route-executor">—</strong></div></article></section>
+<section class="section grid grid-2"><article class="card"><p class="eyebrow">Timeline + attempts</p><h2>执行时间线</h2><div id="route-timeline" class="timeline"></div></article><article class="card"><p class="eyebrow">Normalized response</p><h2>执行结果</h2><pre id="route-result" class="code">等待执行。</pre></article></section><section class="section"><div class="section-head"><div><p class="eyebrow">Subtasks</p><h2>子任务</h2></div></div><div id="route-subtasks" class="grid grid-2"><div class="empty">尚无子任务。</div></div></section>
 </main><footer data-footer></footer><div class="toast"></div><script src="assets/app.js"></script></body></html>

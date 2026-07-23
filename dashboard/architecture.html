@@ -1,23 +1,10 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Architecture & Specs · luyou</title><link rel="stylesheet" href="assets/styles.css"></head>
-<body data-page="architecture"><header data-header></header><main class="shell">
-  <section class="hero"><div><p class="eyebrow">Page 05 / Architecture & Specs</p><h1>先定义边界，再决定技术。</h1><p class="lede">把两份执行清单中的 OpenSpec、DDD、Clean Architecture、TDD、Agent 与 Skill 原则，落到当前 Demo 可解释的结构中。</p></div><aside class="hero-note"><strong>Engineering loop</strong>Problem → Specification → Domain → Contract → Test → Implementation → Evolution</aside></section>
-  <section class="section"><div class="section-head"><div><p class="eyebrow">Domain design</p><h2>每个领域负责什么，也明确不负责什么</h2></div><p>Routing 不直接调用 Provider，Gateway 不做模型决策，Agent 不成为可靠性基础。</p></div><div class="grid grid-3" id="domain-grid"></div></section>
-  <section class="section grid grid-2">
-    <article class="card accent-card"><p class="eyebrow">Main request flow</p><h2>成功路径</h2><div class="flow" style="grid-template-columns:repeat(2,1fr)"><div class="flow-step"><strong>Receive</strong>Gateway 接收</div><div class="flow-step"><strong>Validate</strong>Contract 校验</div><div class="flow-step"><strong>Route</strong>领域策略</div><div class="flow-step"><strong>Select</strong>模型候选</div><div class="flow-step"><strong>Execute</strong>Adapter 调用</div><div class="flow-step"><strong>Normalize</strong>统一响应</div></div></article>
-    <article class="card"><p class="eyebrow">Failure flow</p><h2>失败路径</h2><div class="flow" style="grid-template-columns:repeat(2,1fr)"><div class="flow-step"><strong>Error</strong>执行失败</div><div class="flow-step"><strong>Classify</strong>错误分类</div><div class="flow-step"><strong>Retry?</strong>有限重试</div><div class="flow-step"><strong>Fallback?</strong>下一候选</div><div class="flow-step"><strong>Trace</strong>记录决策</div><div class="flow-step"><strong>Respond</strong>成功或标准错误</div></div></article>
-  </section>
-  <section class="section"><div class="section-head"><div><p class="eyebrow">Architecture decisions</p><h2>关键 ADR</h2></div><p>每项技术选择都从问题、约束与后果出发，而不是为了使用技术而使用技术。</p></div><div class="grid grid-3" id="adr-grid"></div></section>
-  <section class="section grid grid-2">
-    <article class="card"><p class="eyebrow">Ports & adapters</p><h2>稳定核心，替换边缘</h2><pre class="code">HTTP Client
-    ↓
-Gateway Adapter
-    ↓
-RouteRequest Use Case
-    ↓
-Routing Domain ── ModelProvider Port
-                         ↑
-          OpenAI / Claude / DeepSeek Adapter</pre></article>
-    <article class="card accent-card"><p class="eyebrow">Quality gates</p><h2>工程闭环</h2><ul class="check-list" id="quality-gates"></ul></article>
-  </section>
-  <section class="section"><div class="card"><p class="eyebrow">Evolution</p><h2>什么时候引入 gRPC 与分布式</h2><p class="lede">当 Gateway 与 Routing 需要独立扩缩容、跨语言部署或稳定内部 Contract 时，再把当前模块边界拆成服务。当前阶段先保证规则、Contract、测试与可观测性正确。</p><div class="actions"><span class="pill">模块化单体</span><span class="arrow">→</span><span class="pill">稳定 Contract</span><span class="arrow">→</span><span class="pill">服务拆分</span><span class="arrow">→</span><span class="pill">gRPC / Observability</span></div></div></section>
-</main><footer data-footer></footer><div class="toast"></div><script src="assets/app.js"></script></body></html>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>架构与规格 · luyou</title><link rel="stylesheet" href="assets/styles.css"></head><body data-page="architecture"><header data-header></header><main class="shell"><section class="hero"><div><p class="eyebrow">Page 05 / 架构与规格</p><h1>先定义边界，再演进基础设施。</h1><p class="lede">当前采用模块化单体，以稳定 Contract、领域边界和测试为优先；只有出现独立扩缩容或跨语言需求时才拆分 gRPC 服务。</p></div><aside class="hero-note"><strong>Engineering loop</strong>Specification → DDD → Contract → TDD → Implementation → Assessment</aside></section><section class="section"><div class="section-head"><div><p class="eyebrow">Bounded contexts</p><h2>领域职责与禁止越界</h2></div></div><div id="domain-grid" class="grid grid-3"></div></section><section class="section grid grid-2"><article class="card"><p class="eyebrow">Ports & adapters</p><h2>稳定核心，替换边缘</h2><pre class="code">HTTP Gateway
+  → TaskDispatcher
+  → Routing Policy
+  → ExecutionService
+  → ModelProvider Port
+  → LiteLLM / Fault Adapter
+
+ExecutionObserver Port
+  → In-memory metrics (demo)
+  → OpenTelemetry (deferred)</pre></article><article class="card accent-card"><p class="eyebrow">Quality gates</p><h2>质量门禁</h2><ul id="quality-gates" class="check-list"></ul></article></section><section class="section"><article class="card"><p class="eyebrow">Deferred by evidence</p><h2>明确未宣称完成</h2><p class="lede">gRPC 运行时、持久化指标、分布式 Trace、流式 Chat Completion 与主动远程健康探测均保留在演进清单中，当前 Demo 不做虚假完成声明。</p></article></section></main><footer data-footer></footer><div class="toast"></div><script src="assets/app.js"></script></body></html>

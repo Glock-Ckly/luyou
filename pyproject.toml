@@ -2,7 +2,10 @@
 name = "luyou-model-router"
 version = "0.2.0"
 requires-python = ">=3.12"
+dependencies = [
+  "litellm>=1.70,<2",
+  "PyYAML>=6,<7",
+]
 
 [tool.unittest]
 start-directory = "tests"
-

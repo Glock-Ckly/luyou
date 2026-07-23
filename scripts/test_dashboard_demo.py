@@ -25,6 +25,27 @@ class DashboardDemoTests(unittest.TestCase):
         for relative_path in expected:
             self.assertTrue((ROOT / "dashboard" / relative_path).is_file(), relative_path)
 
+    def test_five_pages_are_readable_and_use_live_runtime_data(self):
+        expected_titles = {
+            "index.html": "系统总览",
+            "routing.html": "路由实验室",
+            "providers.html": "Provider 目录",
+            "reliability.html": "可靠性实验室",
+            "architecture.html": "架构与规格",
+        }
+        for filename, title in expected_titles.items():
+            content = (ROOT / "dashboard" / filename).read_text(encoding="utf-8")
+            self.assertIn(title, content)
+            self.assertNotIn("鎬", content)
+        script = (ROOT / "dashboard" / "assets" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/metrics", script)
+        self.assertIn("trace_id", script)
+        self.assertIn("attempts", script)
+
+    def test_container_delivery_files_exist(self):
+        for filename in ["Dockerfile", "compose.yaml", ".dockerignore"]:
+            self.assertTrue((ROOT / filename).is_file(), filename)
+
     def test_catalog_is_generated_from_runtime_routing_data(self):
         catalog = build_catalog()
         self.assertGreaterEqual(len(catalog["providers"]), 3)
