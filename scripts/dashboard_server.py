@@ -61,7 +61,28 @@ def _budget_ratio() -> float:
 
 def build_catalog() -> dict:
     _src_imports()
+    from model_router.adapters.providers.litellm_provider import LiteLLMProvider
+    from model_router.domain.models import ProviderHealth, ProviderId
     from routing_table import MODEL_CATALOG, TASK_POLICY, TASK_TO_MODEL
+
+    provider_ids = sorted({
+        "local" if model_id == "cursor_queue" else model_id.split("/", 1)[0]
+        for model_id in MODEL_CATALOG
+    })
+
+    async def load_health():
+        adapter = LiteLLMProvider()
+        health = {}
+        for provider_id in provider_ids:
+            identity = ProviderId(provider_id)
+            health[provider_id] = (
+                ProviderHealth(identity, True, "local execution adapter")
+                if provider_id == "local"
+                else await adapter.health(identity)
+            )
+        return health
+
+    provider_health = asyncio.run(load_health())
 
     route_usage: dict[str, int] = {}
     routes = []
@@ -91,7 +112,8 @@ def build_catalog() -> dict:
         provider = providers.setdefault(provider_id, {
             "id": provider_id,
             "name": provider_id.title(),
-            "status": "configured",
+            "status": "available" if provider_health[provider_id].available else "unavailable",
+            "health_detail": provider_health[provider_id].detail,
             "models": [],
         })
         provider["models"].append(model)
@@ -134,6 +156,13 @@ def build_meta() -> dict:
             "routes": len(catalog["routes"]),
         },
     }
+
+
+def build_metrics() -> dict:
+    _src_imports()
+    from model_router.runtime import execution_observer
+
+    return execution_observer.snapshot()
 
 
 def _run_dispatch(prompt: str, workdir: str) -> dict:
@@ -197,6 +226,7 @@ def simulate_reliability(payload: dict) -> dict:
     from model_router.adapters.providers.fault_injecting_provider import FaultInjectingProvider
     from model_router.application.execution_service import ExecutionService
     from model_router.domain.models import ModelId, RetryPolicy, TraceId
+    from model_router.runtime import execution_observer
     from routing_table import route
 
     task_type = str(payload.get("task_type") or "implementation")
@@ -219,6 +249,7 @@ def simulate_reliability(payload: dict) -> dict:
                 failure_mode=failure_mode,
             ),
             RetryPolicy(max_retries=1 if retry_once else 0),
+            observer=execution_observer,
             timeout_seconds=1,
         ).execute(
             trace_id=trace_id,
@@ -371,6 +402,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(200, build_specs())
             return
 
+        if path == "/api/metrics":
+            self._json_response(200, build_metrics())
+            return
+
         if path == "/api/cursor/queue":
             self._json_response(200, {"pending": _cursor_queue_pending()})
             return
@@ -425,7 +460,7 @@ def main():
     host = "127.0.0.1"
     server = ThreadingHTTPServer((host, PORT), Handler)
     print(f"luyou five-page demo -> http://{host}:{PORT}")
-    print("API -> GET /health | /api/meta | /api/catalog | /api/specs")
+    print("API -> GET /health | /api/meta | /api/catalog | /api/specs | /api/metrics")
     print("API -> POST /v1/chat/completions | /api/route | /api/reliability/simulate")
     try:
         server.serve_forever()

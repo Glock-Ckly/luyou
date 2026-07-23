@@ -93,6 +93,16 @@ class HttpGatewayServerTests(unittest.TestCase):
         self.assertEqual("deepseek/deepseek-v4-pro", payload["model"])
         self.assertEqual("http://allowed.example", headers["Access-Control-Allow-Origin"])
 
+    def test_metrics_endpoint_requires_auth_and_returns_events(self):
+        status, payload, _ = self.request(
+            "GET",
+            "/api/metrics",
+            headers={"Authorization": "Bearer contract-secret"},
+        )
+        self.assertEqual(200, status)
+        self.assertIn("requests", payload["metrics"])
+        self.assertIsInstance(payload["events"], list)
+
 
 if __name__ == "__main__":
     unittest.main()

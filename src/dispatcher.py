@@ -21,6 +21,7 @@ from l2_classifier import classify_l2, parse_l2_json
 from model_router.adapters.providers.litellm_provider import LiteLLMProvider
 from model_router.application.execution_service import ExecutionService
 from model_router.domain.models import ModelId, RetryPolicy, TraceId
+from model_router.runtime import execution_observer
 from relay_config import apply_relay_env
 from routing_table import route
 from task_decomposer import DecomposerResult, Subtask, decompose
@@ -441,6 +442,7 @@ class TaskDispatcher:
         service = ExecutionService(
             LiteLLMProvider(),
             RetryPolicy(max_retries=1),
+            observer=execution_observer,
             timeout_seconds=120,
         )
         execution = await service.execute(

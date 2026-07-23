@@ -99,6 +99,21 @@ class AttemptRecord:
 
 
 @dataclass(frozen=True)
+class ExecutionEvent:
+    trace_id: TraceId
+    kind: str
+    model_id: ModelId | None = None
+    status: str = ""
+    action: str = ""
+    latency_ms: int = 0
+    error_type: str | None = None
+
+    @property
+    def attempted(self) -> bool:
+        return self.kind == "attempt" and self.action != "skip_unavailable"
+
+
+@dataclass(frozen=True)
 class ExecutionResult:
     trace_id: TraceId
     outcome: str
@@ -109,4 +124,3 @@ class ExecutionResult:
     @property
     def selected_model(self) -> ModelId | None:
         return self.response.model_id if self.response else None
-
