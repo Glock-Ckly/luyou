@@ -1,59 +1,59 @@
-# luyou — AI Model Router 五页 Demo
+# luyou — AI Model Router
 
-个人编码工作流：任务类型 → 模型精确路由 + Cursor 手动交付，并提供可运行的五页工程化控制台。
-
-基于 [llm-router](https://github.com/ypollak2/llm-router) wrapper，不修改其源码。
+一个基于 Python 模块化单体、DDD/TDD 和 Ports & Adapters 的 AI Model Router Demo。系统提供 OpenAI 兼容 API、确定性路由、多 Provider 抽象、健康过滤、有限重试与 Fallback、Trace、指标、五页控制台和容器化交付。
 
 ## 快速开始
 
-1. 复制 `config/relay.env.example` → `~/.llm-router/.env`，填入中转站密钥与 Base URL
-2. 按需调整 `config/relay_models.yaml` 模型映射
-3. 验收（提交前必跑）：
-   - `python scripts/smoke_relay.py` — 须 **15/15 通过**
-   - `python scripts/eval_l2.py` — L2 分类评估（当前基线 **25/25**）
-4. 端到端：`cd src && python -c "import asyncio; from orchestrator import handle_prompt; print(asyncio.run(handle_prompt('hello')))"`
+1. 使用 Python 3.12 安装依赖：pip install -e .
+2. 从 config/relay.env.example 配置 Provider 密钥与 Base URL，切勿提交真实密钥。
+3. 可选设置 MODEL_ROUTER_API_TOKEN、MODEL_ROUTER_ALLOWED_ORIGINS、MODEL_ROUTER_ALLOWED_WORKDIRS 和 MODEL_ROUTER_RATE_LIMIT_PER_MINUTE。
+4. 启动：python scripts/dashboard_server.py
+5. 打开：http://127.0.0.1:1785
 
-## 提交前必跑验收
+Docker 方式见 docs/deployment.md。
 
-每个任务完成后：
+## HTTP API
 
-```bash
-python scripts/smoke_relay.py
-python scripts/eval_l2.py
-python scripts/test_dashboard_demo.py
-```
-
-仅当 smoke `15 passed, 0 failed` 且 eval `PASS` 时再 `git commit` / `git push`。
+- GET /health
+- POST /v1/chat/completions
+- GET /api/meta
+- GET /api/catalog
+- GET /api/specs
+- GET /api/metrics
+- POST /api/route
+- POST /api/reliability/simulate
 
 ## 五页 Demo
 
-启动服务：
-
-    python scripts/dashboard_server.py
-
-打开 http://127.0.0.1:1785：
-
-| 页面 | 地址 | 实际能力 |
+| 页面 | 地址 | 真实能力 |
 |---|---|---|
-| Command Center | / | Git、预算、Provider、Model 与路由统计 |
-| Routing Lab | /routing.html | 调用真实 /api/route 分发链路 |
-| Provider Registry | /providers.html | 读取运行时模型目录、成本与 Contract |
-| Reliability Lab | /reliability.html | Retry / Fallback 故障注入与 Trace |
-| Architecture & Specs | /architecture.html | DDD 边界、生命周期、ADR 与质量门禁 |
+| 系统总览 | / | Git、目录、请求指标与最近事件 |
+| 路由实验室 | /routing.html | 统一 Dispatcher、Trace、子任务与 Provider 尝试链 |
+| Provider 目录 | /providers.html | 运行时模型目录与 Provider 健康 |
+| 可靠性实验室 | /reliability.html | 生产 ExecutionService 上的故障注入、Retry 与 Fallback |
+| 架构与规格 | /architecture.html | DDD 边界、质量门禁与明确延期项 |
 
-新增 API：GET /api/catalog、GET /api/specs、POST /api/reliability/simulate。
+## 确定性质量门禁
 
-完整落地计划见 [docs/AI_MODEL_ROUTER_DEMO_PLAN.md](docs/AI_MODEL_ROUTER_DEMO_PLAN.md)。
+- python -m unittest discover -s tests -v：31/31 通过（2026-07-23）
+- python scripts/test_dashboard_demo.py：7/7 通过（2026-07-23）
+- node --check dashboard/assets/app.js：通过
+- 浏览器五页验收：中文、导航、动态数据、可靠性交互和控制台错误检查通过
 
-## 架构
+## 在线评估
 
-```
-Prompt → TaskDecomposer → L1(关键词) → L2(DeepSeek) → Router → Model/Cursor → Validator
-```
+python scripts/run_acceptance.py 在 2026-07-23 的结果为 6/7。Smoke 15/15、Decomposer 10/10、E2E 13/13 均通过；L2 在线分类为 20/25（80%），因 2 个 implementation/debugging 关键样本被判为 uncertain 而失败。在线评估不能替代确定性单元、契约和集成测试，也不能继续宣称历史 25/25。
 
-详见 [multi-llm-router-design.md](multi-llm-router-design.md) 与 [STATUS.md](STATUS.md)。
+## 关键边界
 
-## 密钥
+- 当前运行时是 Python，而不是 Java/Spring Boot；理由见 ADR-001。
+- 当前是模块化单体；proto/model_router.proto 仅定义未来边界，未实现 gRPC Client/Server。
+- Runtime Agent Decision、持久化指标、Circuit Breaker、流式响应和 Kubernetes 均未宣称完成。
+- 清单完成矩阵与解决方案见 docs/checklist-matrix.md。
 
-- **切勿**将 `~/.llm-router/.env` 或含真实 `sk-` 的文件提交到仓库
-- 仓库内仅保留 `config/relay.env.example` 模板
+## 可复用资产
+
+- skills/model-router-delivery
+- skills/provider-adapter-contract
+- skills/router-reliability-audit
+- skills/agents
