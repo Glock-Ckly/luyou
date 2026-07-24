@@ -1,6 +1,6 @@
 # Checklist Completion Matrix
 
-审计基准：AI_Model_Router_工程化项目设计与执行清单.md 与 新执行清单.md。日期：2026-07-23。
+审计基准：AI_Model_Router_工程化项目设计与执行清单.md 与 新执行清单.md。最新补充审计日期：2026-07-24。
 
 ## Completed
 
@@ -34,6 +34,7 @@
 | Performance goals | No load-test evidence | Define average/P95/P99 and concurrency SLOs, then run repeatable load tests |
 | Docker execution | Definition present | Build and health-test image in CI or a Docker-enabled host |
 | Online L2 quality | 20/25 current run | Add deterministic guardrails, freeze model/version and expand regression data |
+| Route-to-execution closure | Provider calls and Codex CLI calls exist, but model binding, complete project-aware PromptPackage, persistent ExecutionJob and automatic verification are not complete | Execute docs/AI_Model_Router_任务执行闭环_DDD_TDD改正清单.md phase by phase |
 
 ## Deferred by architecture decision
 
