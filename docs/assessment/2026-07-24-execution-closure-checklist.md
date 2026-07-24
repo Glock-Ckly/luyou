@@ -72,4 +72,4 @@ Not implemented by this documentation phase:
 
 ## Commit
 
-Documentation commit: pending.
+Documentation commit: 03fd039.
