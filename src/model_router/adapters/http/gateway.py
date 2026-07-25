@@ -137,10 +137,24 @@ def format_chat_completion(result: dict, *, requested_model: str) -> dict:
 
 
 def safe_error_payload(error: Exception) -> tuple[int, dict]:
+    from model_router.domain.execution_task import TaskConflict, TaskNotFound, TaskValidationError
+
     if isinstance(error, GatewayRequestError):
         status = error.status
         code = error.code
         message = error.message
+    elif isinstance(error, TaskValidationError):
+        status = 400
+        code = "invalid_task"
+        message = str(error)
+    elif isinstance(error, TaskNotFound):
+        status = 404
+        code = "task_not_found"
+        message = str(error)
+    elif isinstance(error, TaskConflict):
+        status = 409
+        code = "task_conflict"
+        message = str(error)
     else:
         status = 500
         code = "internal_error"

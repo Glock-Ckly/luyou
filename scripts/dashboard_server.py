@@ -11,18 +11,33 @@ import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 DASHBOARD = ROOT / "dashboard"
 PORT = int(os.environ.get("MODEL_ROUTER_PORT", "1785"))
 _RATE_LIMITER = None
+_TASK_SERVICE = None
 
 
 def _src_imports():
     source_path = str(ROOT / "src")
     if source_path not in sys.path:
         sys.path.insert(0, source_path)
+
+
+def _task_service():
+    global _TASK_SERVICE
+    if _TASK_SERVICE is None:
+        _src_imports()
+        from model_router.adapters.persistence.sqlite_task_repository import SQLiteTaskRepository
+        from model_router.application.task_service import TaskService
+
+        database_path = Path(
+            os.environ.get("MODEL_ROUTER_DB_PATH", ROOT / ".runtime" / "model-router.db")
+        )
+        _TASK_SERVICE = TaskService(SQLiteTaskRepository(database_path))
+    return _TASK_SERVICE
 
 
 def _git_info() -> dict:
@@ -300,7 +315,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin:
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
 
     def _json_response(self, status: int, payload: dict):
@@ -311,6 +326,11 @@ class Handler(BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
         self.wfile.write(body)
+
+    def _empty_response(self, status: int):
+        self.send_response(status)
+        self._cors()
+        self.end_headers()
 
     def _read_json(self) -> dict:
         _src_imports()
@@ -386,13 +406,30 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             self._safe_error(error)
 
+    def do_PUT(self):
+        try:
+            self._do_put()
+        except (ConnectionAbortedError, BrokenPipeError):
+            pass
+        except Exception as error:
+            self._safe_error(error)
+
+    def do_DELETE(self):
+        try:
+            self._do_delete()
+        except (ConnectionAbortedError, BrokenPipeError):
+            pass
+        except Exception as error:
+            self._safe_error(error)
+
     def do_OPTIONS(self):
         self.send_response(204)
         self._cors()
         self.end_headers()
 
     def _do_get(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
 
         if path == "/health":
             self._json_response(200, {"status": "ok", "service": "luyou-model-router"})
@@ -420,6 +457,23 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/cursor/queue":
             self._json_response(200, {"pending": _cursor_queue_pending()})
+            return
+
+        if path == "/api/tasks":
+            query = parse_qs(parsed.query)
+            self._json_response(
+                200,
+                _task_service().list(
+                    status=query.get("status", [None])[0],
+                    task_type=query.get("task_type", [None])[0],
+                    search=query.get("search", [None])[0],
+                ),
+            )
+            return
+
+        if path.startswith("/api/tasks/"):
+            task_id = unquote(path.removeprefix("/api/tasks/"))
+            self._json_response(200, _task_service().get(task_id))
             return
 
         self._static_response(path)
@@ -453,6 +507,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(200, simulate_reliability(body))
             return
 
+        if path == "/api/tasks":
+            self._json_response(201, _task_service().create(body))
+            return
+
         if path != "/api/route":
             self._json_response(404, {"error": "not found"})
             return
@@ -467,6 +525,29 @@ class Handler(BaseHTTPRequestHandler):
         workdir = resolve_workdir(body.get("workdir"), GatewayConfig.from_env(ROOT))
         result = _run_dispatch(prompt, str(workdir))
         self._json_response(200, result)
+
+    def _do_put(self):
+        path = urlparse(self.path).path
+        if path.startswith("/api/"):
+            self._authorize()
+            self._rate_limit()
+        if not path.startswith("/api/tasks/"):
+            self._json_response(404, {"error": "not found"})
+            return
+        task_id = unquote(path.removeprefix("/api/tasks/"))
+        self._json_response(200, _task_service().update(task_id, self._read_json()))
+
+    def _do_delete(self):
+        path = urlparse(self.path).path
+        if path.startswith("/api/"):
+            self._authorize()
+            self._rate_limit()
+        if not path.startswith("/api/tasks/"):
+            self._json_response(404, {"error": "not found"})
+            return
+        task_id = unquote(path.removeprefix("/api/tasks/"))
+        _task_service().delete(task_id)
+        self._empty_response(204)
 
 
 def main():
