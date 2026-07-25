@@ -1,5 +1,6 @@
 const page = document.body.dataset.page;
 const routes = [
+  ['tasks', 'tasks.html', '任务工作台'],
   ['overview', 'index.html', '总览'],
   ['routing', 'routing.html', '路由实验室'],
   ['providers', 'providers.html', 'Provider'],
@@ -30,7 +31,7 @@ function apiHeaders(extra = {}) {
 
 async function api(path, options = {}) {
   const response = await fetch(path, {...options, headers: apiHeaders(options.headers)});
-  const data = await response.json();
+  const data = response.status === 204 ? null : await response.json();
   if (!response.ok) throw new Error(data.error?.message || data.error || response.statusText);
   return data;
 }
@@ -186,5 +187,178 @@ async function initArchitecture() {
   specs.quality_gates.forEach((gate) => document.getElementById('quality-gates').append(el('li', '', gate)));
 }
 
+const taskState = {items: [], selected: null, status: '', taskType: '', search: ''};
+
+const taskLabels = {
+  draft: '草稿', ready: '待执行', running: '执行中', validating: '验证中',
+  completed: '已完成', failed: '失败', cancelled: '已取消',
+  low: '低', medium: '中', high: '高', urgent: '紧急',
+};
+
+function splitTaskValues(value, lineMode = false) {
+  return value.split(lineMode ? /\r?\n/ : /[,，]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function taskPayload() {
+  return {
+    title: document.getElementById('task-title').value.trim(),
+    description: document.getElementById('task-description').value.trim(),
+    task_type: document.getElementById('task-type').value,
+    status: document.getElementById('task-status').value,
+    priority: document.getElementById('task-priority').value,
+    technology_stack: splitTaskValues(document.getElementById('task-stack').value),
+    scope: document.getElementById('task-scope').value.trim(),
+    acceptance_criteria: splitTaskValues(document.getElementById('task-criteria').value, true),
+    tags: splitTaskValues(document.getElementById('task-tags').value),
+    version: Number(document.getElementById('task-version').value) || undefined,
+  };
+}
+
+function openTaskDialog(task = null) {
+  const dialog = document.getElementById('task-dialog');
+  document.getElementById('task-form').reset();
+  document.getElementById('task-form-error').textContent = '';
+  document.getElementById('task-id').value = task?.task_id || '';
+  document.getElementById('task-version').value = task?.version || '';
+  document.getElementById('task-title').value = task?.title || '';
+  document.getElementById('task-description').value = task?.description || '';
+  document.getElementById('task-type').value = task?.task_type || 'implementation';
+  document.getElementById('task-status').value = task?.status || 'draft';
+  document.getElementById('task-priority').value = task?.priority || 'medium';
+  document.getElementById('task-stack').value = (task?.technology_stack || []).join(', ');
+  document.getElementById('task-scope').value = task?.scope || '';
+  document.getElementById('task-criteria').value = (task?.acceptance_criteria || []).join('\n');
+  document.getElementById('task-tags').value = (task?.tags || []).join(', ');
+  document.getElementById('task-form-kicker').textContent = task ? 'Edit Task' : 'Create Task';
+  document.getElementById('task-form-title').textContent = task ? '编辑执行任务' : '新建执行任务';
+  dialog.showModal();
+}
+
+function taskBadge(value, kind) {
+  return el('span', 'task-chip ' + kind + '-' + value, taskLabels[value] || value);
+}
+
+function renderTaskDetail() {
+  const detail = document.getElementById('task-detail');
+  const edit = document.getElementById('task-edit');
+  const remove = document.getElementById('task-delete');
+  if (!taskState.selected) {
+    detail.className = 'task-detail-empty';
+    detail.textContent = '从中间列表选择任务查看完整上下文。';
+    setText('task-detail-version', '未选择');
+    edit.disabled = true;
+    remove.disabled = true;
+    return;
+  }
+  const task = taskState.selected;
+  detail.className = 'task-detail-content';
+  detail.replaceChildren();
+  const title = el('h3', '', task.title);
+  const badges = el('div', 'task-card-badges');
+  badges.append(taskBadge(task.status, 'status'), taskBadge(task.priority, 'priority'));
+  const description = el('p', '', task.description);
+  const metadata = el('dl', 'task-detail-list');
+  const rows = [
+    ['类型', task.task_type], ['技术栈', task.technology_stack.join(' · ') || '未设置'],
+    ['范围', task.scope || '未设置'], ['验收标准', task.acceptance_criteria.join('；') || '未设置'],
+    ['标签', task.tags.join(' · ') || '未设置'], ['更新时间', new Date(task.updated_at).toLocaleString('zh-CN')],
+  ];
+  rows.forEach(([name, value]) => { metadata.append(el('dt', '', name), el('dd', '', value)); });
+  detail.append(title, badges, description, metadata);
+  setText('task-detail-version', 'v' + task.version);
+  edit.disabled = false;
+  remove.disabled = ['running', 'validating'].includes(task.status);
+}
+
+function renderTasks() {
+  const list = document.getElementById('task-list');
+  list.replaceChildren();
+  if (!taskState.items.length) {
+    const empty = el('div', 'task-list-empty');
+    empty.append(el('strong', '', '没有匹配的任务'), el('p', '', '新建一个结构化任务，或调整左侧状态与顶部搜索条件。'));
+    list.append(empty);
+  }
+  taskState.items.forEach((task) => {
+    const card = el('article', 'task-item' + (taskState.selected?.task_id === task.task_id ? ' selected' : ''));
+    card.dataset.taskId = task.task_id;
+    const lead = el('div', 'task-item-lead');
+    const badges = el('div', 'task-card-badges');
+    badges.append(taskBadge(task.status, 'status'), taskBadge(task.priority, 'priority'), el('span', 'task-chip', task.task_type));
+    lead.append(badges, el('h3', '', task.title), el('p', '', task.description));
+    const tags = el('div', 'task-card-tags');
+    (task.tags.length ? task.tags : ['未标记']).forEach((tag) => tags.append(el('span', '', '#' + tag)));
+    lead.append(tags);
+    const side = el('div', 'task-item-side');
+    side.append(el('small', '', 'v' + task.version), el('time', '', new Date(task.updated_at).toLocaleDateString('zh-CN')));
+    const actions = el('div', 'task-inline-actions');
+    const view = el('button', '', '查看'); view.type = 'button'; view.dataset.action = 'view';
+    const edit = el('button', '', '编辑'); edit.type = 'button'; edit.dataset.action = 'edit';
+    const remove = el('button', 'danger', '删除'); remove.type = 'button'; remove.dataset.action = 'delete'; remove.disabled = ['running', 'validating'].includes(task.status);
+    actions.append(view, edit, remove); side.append(actions); card.append(lead, side); list.append(card);
+  });
+  const counts = Object.fromEntries(['draft', 'ready', 'running', 'validating', 'completed', 'failed'].map((status) => [status, taskState.items.filter((task) => task.status === status).length]));
+  setText('task-total', taskState.items.length + ' 项'); setText('count-all', taskState.items.length);
+  Object.entries(counts).forEach(([status, count]) => setText('count-' + status, count));
+  setText('stat-total', taskState.items.length); setText('stat-ready', counts.ready);
+  setText('stat-active', counts.running + counts.validating); setText('stat-done', counts.completed);
+  renderTaskDetail();
+}
+
+async function loadTasks(selectId = null) {
+  const query = new URLSearchParams();
+  if (taskState.status) query.set('status', taskState.status);
+  if (taskState.taskType) query.set('task_type', taskState.taskType);
+  if (taskState.search) query.set('search', taskState.search);
+  const data = await api('/api/tasks' + (query.size ? '?' + query.toString() : ''));
+  taskState.items = data.items;
+  if (selectId) taskState.selected = taskState.items.find((task) => task.task_id === selectId) || null;
+  else if (taskState.selected) taskState.selected = taskState.items.find((task) => task.task_id === taskState.selected.task_id) || null;
+  renderTasks();
+}
+
+async function deleteTask(task) {
+  if (!task || !confirm('确认删除任务“' + task.title + '”？此操作不可撤销。')) return;
+  await api('/api/tasks/' + encodeURIComponent(task.task_id), {method: 'DELETE'});
+  if (taskState.selected?.task_id === task.task_id) taskState.selected = null;
+  await loadTasks();
+  showToast('任务已删除');
+}
+
+async function initTasks() {
+  document.getElementById('task-create').addEventListener('click', () => openTaskDialog());
+  document.getElementById('task-refresh').addEventListener('click', () => loadTasks());
+  document.getElementById('task-dialog-close').addEventListener('click', () => document.getElementById('task-dialog').close());
+  document.getElementById('task-cancel').addEventListener('click', () => document.getElementById('task-dialog').close());
+  document.getElementById('task-search-form').addEventListener('submit', (event) => {
+    event.preventDefault(); taskState.search = document.getElementById('task-search').value.trim(); loadTasks();
+  });
+  document.getElementById('task-type-filter').addEventListener('change', (event) => { taskState.taskType = event.target.value; loadTasks(); });
+  document.querySelectorAll('[data-task-status]').forEach((button) => button.addEventListener('click', () => {
+    document.querySelectorAll('[data-task-status]').forEach((item) => item.classList.toggle('active', item === button));
+    taskState.status = button.dataset.taskStatus; loadTasks();
+  }));
+  document.getElementById('task-list').addEventListener('click', (event) => {
+    const card = event.target.closest('[data-task-id]'); if (!card) return;
+    const task = taskState.items.find((item) => item.task_id === card.dataset.taskId); if (!task) return;
+    const action = event.target.closest('[data-action]')?.dataset.action || 'view';
+    taskState.selected = task;
+    if (action === 'edit') openTaskDialog(task); else if (action === 'delete') deleteTask(task); else renderTasks();
+  });
+  document.getElementById('task-edit').addEventListener('click', () => openTaskDialog(taskState.selected));
+  document.getElementById('task-delete').addEventListener('click', () => deleteTask(taskState.selected));
+  document.getElementById('task-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const id = document.getElementById('task-id').value;
+    const error = document.getElementById('task-form-error'); error.textContent = '';
+    try {
+      const saved = await api(id ? '/api/tasks/' + encodeURIComponent(id) : '/api/tasks', {
+        method: id ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(taskPayload()),
+      });
+      document.getElementById('task-dialog').close(); await loadTasks(saved.task_id); showToast(id ? '任务已更新' : '任务已创建');
+    } catch (requestError) { error.textContent = requestError.message; }
+  });
+  await loadTasks();
+}
+
 mountChrome();
-({overview: initOverview, routing: initRouting, providers: initProviders, reliability: initReliability, architecture: initArchitecture}[page] || (() => {}))().catch((error) => showToast(error.message));
+({tasks: initTasks, overview: initOverview, routing: initRouting, providers: initProviders, reliability: initReliability, architecture: initArchitecture}[page] || (() => {}))().catch((error) => showToast(error.message));

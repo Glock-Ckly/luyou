@@ -25,6 +25,27 @@ class DashboardDemoTests(unittest.TestCase):
         for relative_path in expected:
             self.assertTrue((ROOT / "dashboard" / relative_path).is_file(), relative_path)
 
+    def test_task_workbench_has_live_crud_and_nested_layout(self):
+        page = ROOT / "dashboard" / "tasks.html"
+        self.assertTrue(page.is_file())
+        content = page.read_text(encoding="utf-8")
+        script = (ROOT / "dashboard" / "assets" / "app.js").read_text(encoding="utf-8")
+        styles = (ROOT / "dashboard" / "assets" / "styles.css").read_text(encoding="utf-8")
+        for marker in (
+            "task-workbench",
+            "task-category-rail",
+            "task-market-main",
+            "task-context-panel",
+            "task-create",
+            "task-form",
+            "task-delete",
+        ):
+            self.assertIn(marker, content + script + styles)
+        self.assertIn("/api/tasks", script)
+        self.assertIn("'POST'", script)
+        self.assertIn("'PUT'", script)
+        self.assertIn("method: 'DELETE'", script)
+
     def test_five_pages_are_readable_and_use_live_runtime_data(self):
         expected_titles = {
             "index.html": "系统总览",

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>任务工作台 · luyou</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body data-page="tasks">
+  <header data-header></header>
+  <main class="task-page">
+    <section class="task-market-header">
+      <div class="task-market-brand">
+        <span class="task-market-logo">AI</span>
+        <div><strong>任务执行工作台</strong><small>从结构化任务开始，逐步连接计划、提示词、路由与执行</small></div>
+      </div>
+      <form id="task-search-form" class="task-global-search">
+        <input id="task-search" type="search" placeholder="搜索任务标题、描述或标签">
+        <button type="submit">搜索任务</button>
+      </form>
+      <button id="task-create" class="task-primary-button" type="button">＋ 新建任务</button>
+    </section>
+
+    <section class="task-workbench">
+      <aside class="task-category-rail">
+        <div class="task-panel-title"><span>任务分类</span><small id="task-total">0 项</small></div>
+        <nav class="task-category-list" aria-label="任务状态筛选">
+          <button class="active" type="button" data-task-status="">全部任务 <b id="count-all">0</b></button>
+          <button type="button" data-task-status="draft">草稿 <b id="count-draft">0</b></button>
+          <button type="button" data-task-status="ready">待执行 <b id="count-ready">0</b></button>
+          <button type="button" data-task-status="running">执行中 <b id="count-running">0</b></button>
+          <button type="button" data-task-status="validating">验证中 <b id="count-validating">0</b></button>
+          <button type="button" data-task-status="completed">已完成 <b id="count-completed">0</b></button>
+          <button type="button" data-task-status="failed">失败 <b id="count-failed">0</b></button>
+        </nav>
+        <div class="task-rail-block">
+          <span class="task-rail-label">领域入口</span>
+          <a href="routing.html">路由实验室</a>
+          <a href="providers.html">模型与 Provider</a>
+          <a href="reliability.html">可靠性验证</a>
+          <a href="architecture.html">DDD / TDD 规格</a>
+        </div>
+      </aside>
+
+      <section class="task-market-main">
+        <div class="task-toolbar">
+          <div>
+            <strong>结构化任务目录</strong>
+            <span>持久化到本地 SQLite，所有操作实时生效</span>
+          </div>
+          <div class="task-filter-row">
+            <select id="task-type-filter" aria-label="任务类型">
+              <option value="">全部类型</option>
+              <option value="architecture">架构设计</option>
+              <option value="implementation">功能实现</option>
+              <option value="debugging">问题调试</option>
+              <option value="refactor">代码重构</option>
+              <option value="code_patch">代码补丁</option>
+              <option value="file_edit">文件编辑</option>
+            </select>
+            <button id="task-refresh" type="button">刷新</button>
+          </div>
+        </div>
+        <div id="task-list" class="task-list" aria-live="polite"></div>
+      </section>
+
+      <aside class="task-context-panel">
+        <section class="task-context-card">
+          <div class="task-panel-title"><span>任务概况</span><small>Live</small></div>
+          <div class="task-stat-grid">
+            <div><strong id="stat-total">0</strong><span>当前结果</span></div>
+            <div><strong id="stat-ready">0</strong><span>待执行</span></div>
+            <div><strong id="stat-active">0</strong><span>处理中</span></div>
+            <div><strong id="stat-done">0</strong><span>已完成</span></div>
+          </div>
+        </section>
+        <section class="task-context-card">
+          <div class="task-panel-title"><span>执行流水线</span><small>边界视图</small></div>
+          <ol class="task-pipeline">
+            <li class="done"><b>1</b><span>Task<small>结构化任务 CRUD</small></span></li>
+            <li><b>2</b><span>Plan<small>待接入规划聚合</small></span></li>
+            <li><b>3</b><span>Prompt<small>待接入提示词编译</small></span></li>
+            <li><b>4</b><span>Route<small>已有候选模型路由</small></span></li>
+            <li><b>5</b><span>Execute<small>Provider / Codex 执行</small></span></li>
+            <li><b>6</b><span>Validate<small>待接入验收与修复</small></span></li>
+          </ol>
+        </section>
+        <section class="task-context-card task-detail-card">
+          <div class="task-panel-title"><span>任务详情</span><small id="task-detail-version">未选择</small></div>
+          <div id="task-detail" class="task-detail-empty">从中间列表选择任务查看完整上下文。</div>
+          <div class="task-detail-actions">
+            <button id="task-edit" type="button" disabled>编辑</button>
+            <button id="task-delete" class="danger" type="button" disabled>删除</button>
+          </div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <dialog id="task-dialog" class="task-dialog">
+    <form id="task-form" method="dialog">
+      <header><div><small id="task-form-kicker">Create Task</small><h2 id="task-form-title">新建执行任务</h2></div><button id="task-dialog-close" type="button" aria-label="关闭">×</button></header>
+      <input id="task-id" type="hidden">
+      <input id="task-version" type="hidden">
+      <div class="task-form-grid">
+        <label class="wide">任务标题<input id="task-title" required maxlength="120" placeholder="例如：实现任务规划与提示词编译"></label>
+        <label class="wide">任务描述<textarea id="task-description" required rows="4" placeholder="描述目标、背景、限制与预期结果"></textarea></label>
+        <label>任务类型<select id="task-type" required><option value="implementation">功能实现</option><option value="architecture">架构设计</option><option value="debugging">问题调试</option><option value="refactor">代码重构</option><option value="code_patch">代码补丁</option><option value="file_edit">文件编辑</option><option value="system_design">系统设计</option><option value="deep_reasoning">深度推理</option></select></label>
+        <label>状态<select id="task-status"><option value="draft">草稿</option><option value="ready">待执行</option><option value="running">执行中</option><option value="validating">验证中</option><option value="completed">已完成</option><option value="failed">失败</option><option value="cancelled">已取消</option></select></label>
+        <label>优先级<select id="task-priority"><option value="medium">中</option><option value="low">低</option><option value="high">高</option><option value="urgent">紧急</option></select></label>
+        <label>技术栈<input id="task-stack" placeholder="Python, SQLite, JavaScript"></label>
+        <label class="wide">范围边界<textarea id="task-scope" rows="2" placeholder="本任务负责什么，不负责什么"></textarea></label>
+        <label class="wide">验收标准<textarea id="task-criteria" rows="3" placeholder="每行一条可验证标准"></textarea></label>
+        <label class="wide">标签<input id="task-tags" placeholder="crud, ddd, tdd"></label>
+      </div>
+      <footer><span id="task-form-error" role="alert"></span><div><button id="task-cancel" type="button">取消</button><button class="task-primary-button" type="submit">保存任务</button></div></footer>
+    </form>
+  </dialog>
+  <footer data-footer></footer>
+  <div class="toast"></div>
+  <script src="assets/app.js"></script>
+</body>
+</html>
