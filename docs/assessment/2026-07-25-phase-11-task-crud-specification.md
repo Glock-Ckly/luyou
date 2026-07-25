@@ -21,4 +21,4 @@ The implementation phase must begin with failing tests for value validation, ver
 
 ## Commit
 
-Specification commit: pending.
+Specification commit: 28daa45.
