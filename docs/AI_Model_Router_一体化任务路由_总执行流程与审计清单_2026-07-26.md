@@ -348,13 +348,13 @@ cancelled  -> (终态)
 **边界**
 
 - 允许写：`specs/**`、`docs/adr/**`、`docs/checklist-matrix.md`
-- 禁止写：`src/**`、`tests/**`（本阶段例外：允许新增一个规格存在性检查测试）
+- 禁止写：`src/**`；`tests/**` 本阶段只允许新增 `tests/contract/test_execution_closure_specs.py`
 
 **Red 清单**
 
 | # | 测试 | 期望 |
 |---|---|---|
-| R1-1 | `/api/specs` 返回内容包含全部新增规格文件 | 通过 |
+| R1-1 | `overview.md` 作为规格索引，链接全部新增规格文件 | 通过；`/api/specs` 暴露留到 Phase 23 HTTP Gateway，避免纯文档阶段修改运行时代码 |
 | R1-2 | Dashboard 检查断言 8 个新规格文件存在且非空 | 通过 |
 | R1-3 | 断言 ADR-009..014 存在且含"决策/背景/后果"三段 | 通过 |
 | R1-4 | 断言术语表中 6 个状态词各有唯一定义 | 通过 |
@@ -368,7 +368,7 @@ cancelled  -> (终态)
 **DoD**
 
 - [ ] 8 个规格 + 6 个 ADR 全部落地
-- [ ] `/api/specs` 能列出
+- [ ] `overview.md` 能索引全部规格；本阶段不改变 `/api/specs` 运行时契约
 - [ ] 术语表与本文 §8 逐字一致（避免两处定义漂移）
 - [ ] assessment 明确写"本阶段无生产代码变更"
 
