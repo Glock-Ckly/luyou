@@ -29,9 +29,29 @@ ExecutionTask owns:
 - Status must use draft, ready, running, validating, completed, failed or cancelled.
 - Priority must use low, medium, high or urgent.
 - Acceptance criteria and tags are normalized non-empty strings.
+- HTTP collection fields (`technology_stack`, `acceptance_criteria`, `tags`) must be JSON arrays.
+- Domain collection inputs may be lists, tuples or sets; strings, bytes and mappings are invalid collections.
 - Version increases after every update.
+- A supplied update version must be a JSON integer and must equal the persisted version. Malformed
+  strings, fractional numbers and booleans are validation errors, not server errors.
 - Running or validating tasks cannot be deleted.
+- Status updates must follow the ExecutionTask transition matrix below.
 - Repository and HTTP adapters cannot make routing decisions.
+
+## Status transitions
+
+The transition guard applies when updating an existing task. Terminal statuses have no outgoing
+transitions.
+
+| Current | Allowed next statuses |
+|---|---|
+| draft | ready, cancelled |
+| ready | running, draft, cancelled |
+| running | validating, failed, cancelled |
+| validating | completed, failed, running |
+| completed | none |
+| failed | ready, cancelled |
+| cancelled | none |
 
 ## API contract
 
@@ -40,10 +60,18 @@ ExecutionTask owns:
 - GET /api/tasks/<task_id> returns one task or normalized 404.
 - PUT /api/tasks/<task_id> replaces editable task fields and checks version when supplied.
 - DELETE /api/tasks/<task_id> removes a deletable task and returns HTTP 204.
+- Malformed versions and collection shapes return HTTP 400 with `invalid_task`.
+- Deleting an unknown task returns HTTP 404 with `task_not_found`.
+- Deleting a running or validating task returns HTTP 409 with `task_conflict` and preserves the row.
 
 ## Persistence
 
 Use a TaskRepository port. The MVP adapter uses SQLite at MODEL_ROUTER_DB_PATH or .runtime/model-router.db. Runtime data must not be committed.
+
+Deletion is atomic at the repository boundary. The adapter executes one conditional `DELETE` that
+excludes protected statuses, then uses `rowcount` and a same-transaction existence lookup to
+distinguish not found from a lifecycle conflict. The application layer must not perform a separate
+read-then-delete lifecycle check.
 
 ## UI contract
 

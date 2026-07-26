@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from model_router.adapters.persistence.sqlite_task_repository import SQLiteTaskRepository
-from model_router.domain.execution_task import ExecutionTask, TaskConflict
+from model_router.domain.execution_task import ExecutionTask, TaskConflict, TaskNotFound
 
 
 class SQLiteTaskRepositoryTests(unittest.TestCase):
@@ -48,6 +48,25 @@ class SQLiteTaskRepositoryTests(unittest.TestCase):
         self.repository.add(task)
         with self.assertRaises(TaskConflict):
             self.repository.update(task.update(title="new"), expected_version=99)
+
+    def test_atomic_delete_rejects_protected_status_and_preserves_row(self):
+        task = ExecutionTask.create(
+            title="A", description="B", task_type="implementation", status="running"
+        )
+        self.repository.add(task)
+
+        with self.assertRaises(TaskConflict):
+            self.repository.delete(
+                task.task_id, expected_status_not_in={"running", "validating"}
+            )
+
+        self.assertIsNotNone(self.repository.get(task.task_id))
+
+    def test_atomic_delete_reports_missing_task(self):
+        with self.assertRaises(TaskNotFound):
+            self.repository.delete(
+                "task_missing_phase_15", expected_status_not_in={"running", "validating"}
+            )
 
 
 if __name__ == "__main__":

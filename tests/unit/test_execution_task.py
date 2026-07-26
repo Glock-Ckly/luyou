@@ -48,6 +48,41 @@ class ExecutionTaskTests(unittest.TestCase):
                 title="A", description="B", task_type="implementation", status="unknown"
             )
 
+    def test_completed_task_cannot_transition_to_draft(self):
+        task = ExecutionTask.create(
+            title="A", description="B", task_type="implementation", status="completed"
+        )
+        with self.assertRaises(TaskValidationError):
+            task.update(status="draft")
+
+    def test_legal_status_transitions_are_allowed(self):
+        transitions = {
+            "draft": {"ready", "cancelled"},
+            "ready": {"running", "draft", "cancelled"},
+            "running": {"validating", "failed", "cancelled"},
+            "validating": {"completed", "failed", "running"},
+            "failed": {"ready", "cancelled"},
+        }
+        for current_status, next_statuses in transitions.items():
+            for next_status in next_statuses:
+                with self.subTest(current_status=current_status, next_status=next_status):
+                    task = ExecutionTask.create(
+                        title="A",
+                        description="B",
+                        task_type="implementation",
+                        status=current_status,
+                    )
+                    self.assertEqual(next_status, task.update(status=next_status).status)
+
+    def test_collection_fields_reject_bytes(self):
+        with self.assertRaises(TaskValidationError):
+            ExecutionTask.create(
+                title="A",
+                description="B",
+                task_type="implementation",
+                tags=b"ab",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

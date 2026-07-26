@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Five-page dashboard API and artifact checks."""
+"""Dashboard API, artifact and documentation checks."""
 
 from __future__ import annotations
 
@@ -12,13 +12,14 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class DashboardDemoTests(unittest.TestCase):
-    def test_five_pages_and_shared_assets_exist(self):
+    def test_pages_and_shared_assets_exist(self):
         expected = [
             "index.html",
             "routing.html",
             "providers.html",
             "reliability.html",
             "architecture.html",
+            "tasks.html",
             "assets/styles.css",
             "assets/app.js",
         ]
@@ -46,13 +47,14 @@ class DashboardDemoTests(unittest.TestCase):
         self.assertIn("'PUT'", script)
         self.assertIn("method: 'DELETE'", script)
 
-    def test_five_pages_are_readable_and_use_live_runtime_data(self):
+    def test_pages_are_readable_and_use_live_runtime_data(self):
         expected_titles = {
             "index.html": "系统总览",
             "routing.html": "路由实验室",
             "providers.html": "Provider 目录",
             "reliability.html": "可靠性实验室",
             "architecture.html": "架构与规格",
+            "tasks.html": "任务工作台",
         }
         for filename, title in expected_titles.items():
             content = (ROOT / "dashboard" / filename).read_text(encoding="utf-8")
@@ -107,6 +109,17 @@ class DashboardDemoTests(unittest.TestCase):
         self.assertEqual("failed", result["outcome"])
         self.assertEqual("provider_authentication", result["final_error_type"])
         self.assertEqual(1, len(result["attempts"]))
+
+    def test_repository_documents_match_page_and_test_counts(self):
+        offline_count = unittest.defaultTestLoader.discover(str(ROOT / "tests")).countTestCases()
+        dashboard_count = unittest.defaultTestLoader.loadTestsFromTestCase(
+            DashboardDemoTests
+        ).countTestCases()
+        for filename in ("README.md", "STATUS.md", "docs/checklist-matrix.md"):
+            content = (ROOT / filename).read_text(encoding="utf-8")
+            self.assertIn("六页", content, filename)
+            self.assertIn(f"{offline_count}/{offline_count}", content, filename)
+            self.assertIn(f"{dashboard_count}/{dashboard_count}", content, filename)
 
 
 if __name__ == "__main__":
