@@ -12,7 +12,7 @@
 
 | 检查 | 2026-07-26 结果 |
 |---|---|
-| 离线 unit/contract/integration | 52/52 通过 |
+| 离线 unit/contract/integration | 56/56 通过 |
 | 六页 Demo 检查 | 9/9 通过 |
 | Browser UI | Phase 13 任务页桌面/移动走查通过；其余五页沿用 2026-07-23 历史证据 |
 | Smoke Relay | 15/15 通过 |
@@ -38,6 +38,8 @@
 12. 鉴权和限流保护下的 `/api/tasks` CRUD API
 13. 六页任务工作台及桌面/移动布局走查
 14. 仓库全量审计、Claude 交接报告与执行闭环路线图
+15. Task 基线校准、严格输入/状态契约与原子删除
+16. OpenSpec 风格执行闭环规格索引与 ADR-009 至 ADR-014
 
 ## 已知问题与建议
 

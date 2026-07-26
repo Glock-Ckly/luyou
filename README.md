@@ -42,7 +42,7 @@ Docker 方式见 docs/deployment.md。
 
 ## 确定性质量门禁
 
-- python -m unittest discover -s tests -v：52/52 通过（2026-07-26）
+- python -m unittest discover -s tests -v：56/56 通过（2026-07-26）
 - python scripts/test_dashboard_demo.py：9/9 通过（2026-07-26）
 - node --check dashboard/assets/app.js：通过
 - Phase 13 已记录任务工作台桌面与移动浏览器走查；本阶段未新增浏览器 E2E 结论

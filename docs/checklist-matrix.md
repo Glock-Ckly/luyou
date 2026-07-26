@@ -15,10 +15,11 @@
 | HTTP API | /v1/chat/completions and native demo APIs |
 | Gateway security | Bearer auth, validation, safe errors, CORS allowlist, workdir allowlist, rate limit |
 | Trace and observability | request Trace ID, attempt events, request/success/failure/retry/fallback/latency metrics |
-| Unit, contract and integration tests | 52/52 deterministic tests |
+| Unit, contract and integration tests | 56/56 deterministic tests |
 | Docker delivery definition | Dockerfile, compose.yaml, health check, environment example |
 | 六页 Demo | overview, routing, providers, reliability, architecture, tasks；Dashboard 检查 9/9 |
 | Persistent task catalog | ExecutionTask, TaskService, TaskRepository, SQLite adapter and authenticated `/api/tasks` CRUD |
+| Execution closure specification | OpenSpec-style index plus Job, PromptPackage, binding, verification, Artifact, cost and terminology contracts; ADR-009 to ADR-014 |
 | Skills and bounded agents | 3 validated Skills and 4 role agents under skills/ |
 | Proto contract | proto/model_router.proto, explicitly future runtime boundary |
 
