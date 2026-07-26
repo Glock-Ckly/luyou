@@ -1,6 +1,6 @@
 # luyou — AI Model Router
 
-一个基于 Python 模块化单体、DDD/TDD 和 Ports & Adapters 的 AI Model Router Demo。系统提供 OpenAI 兼容 API、确定性路由、多 Provider 抽象、健康过滤、有限重试与 Fallback、Trace、指标、五页控制台和容器化交付。
+一个基于 Python 模块化单体、DDD/TDD 和 Ports & Adapters 的 AI Model Router Demo。系统提供 OpenAI 兼容 API、确定性路由、多 Provider 抽象、健康过滤、有限重试与 Fallback、Trace、指标、持久化任务 CRUD、六页控制台和容器化交付。
 
 ## 快速开始
 
@@ -20,10 +20,16 @@ Docker 方式见 docs/deployment.md。
 - GET /api/catalog
 - GET /api/specs
 - GET /api/metrics
+- GET /api/cursor/queue
+- GET /api/tasks
+- POST /api/tasks
+- GET /api/tasks/<task_id>
+- PUT /api/tasks/<task_id>
+- DELETE /api/tasks/<task_id>
 - POST /api/route
 - POST /api/reliability/simulate
 
-## 五页 Demo
+## 六页 Demo
 
 | 页面 | 地址 | 真实能力 |
 |---|---|---|
@@ -32,13 +38,14 @@ Docker 方式见 docs/deployment.md。
 | Provider 目录 | /providers.html | 运行时模型目录与 Provider 健康 |
 | 可靠性实验室 | /reliability.html | 生产 ExecutionService 上的故障注入、Retry 与 Fallback |
 | 架构与规格 | /architecture.html | DDD 边界、质量门禁与明确延期项 |
+| 任务工作台 | /tasks.html | SQLite 持久化任务 CRUD、筛选、详情与生命周期保护 |
 
 ## 确定性质量门禁
 
-- python -m unittest discover -s tests -v：31/31 通过（2026-07-23）
-- python scripts/test_dashboard_demo.py：7/7 通过（2026-07-23）
+- python -m unittest discover -s tests -v：52/52 通过（2026-07-26）
+- python scripts/test_dashboard_demo.py：9/9 通过（2026-07-26）
 - node --check dashboard/assets/app.js：通过
-- 浏览器五页验收：中文、导航、动态数据、可靠性交互和控制台错误检查通过
+- Phase 13 已记录任务工作台桌面与移动浏览器走查；本阶段未新增浏览器 E2E 结论
 
 ## 在线评估
 
@@ -49,6 +56,7 @@ python scripts/run_acceptance.py 在 2026-07-23 的结果为 6/7。Smoke 15/15�
 - 当前运行时是 Python，而不是 Java/Spring Boot；理由见 ADR-001。
 - 当前是模块化单体；proto/model_router.proto 仅定义未来边界，未实现 gRPC Client/Server。
 - Runtime Agent Decision、持久化指标、Circuit Breaker、流式响应和 Kubernetes 均未宣称完成。
+- Task CRUD 不等于 ExecutionJob 闭环；路由候选不等于强制模型绑定，Cursor queued 不等于执行完成。
 - 清单完成矩阵与解决方案见 docs/checklist-matrix.md。
 
 ## 可复用资产

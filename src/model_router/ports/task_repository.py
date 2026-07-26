@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Collection, Protocol
 
 from model_router.domain.execution_task import ExecutionTask
 
@@ -16,4 +16,6 @@ class TaskRepository(Protocol):
 
     def update(self, task: ExecutionTask, *, expected_version: int) -> None: ...
 
-    def delete(self, task_id: str) -> None: ...
+    def delete(
+        self, task_id: str, *, expected_status_not_in: Collection[str] = ()
+    ) -> None: ...

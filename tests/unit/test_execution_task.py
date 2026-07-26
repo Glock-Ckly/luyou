@@ -37,8 +37,9 @@ class ExecutionTaskTests(unittest.TestCase):
         self.assertEqual(2, updated.version)
 
     def test_running_task_cannot_be_deleted(self):
-        task = ExecutionTask.create(title="A", description="B", task_type="implementation")
-        running = task.update(status="running")
+        running = ExecutionTask.create(
+            title="A", description="B", task_type="implementation", status="running"
+        )
         with self.assertRaises(TaskConflict):
             running.ensure_deletable()
 

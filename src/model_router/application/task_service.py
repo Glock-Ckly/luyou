@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from model_router.domain.execution_task import ExecutionTask, TaskNotFound, TaskValidationError
+from model_router.domain.execution_task import (
+    ExecutionTask,
+    TaskConflict,
+    TaskNotFound,
+    TaskValidationError,
+)
 from model_router.ports.task_repository import TaskRepository
 
 
@@ -23,19 +28,19 @@ class TaskService:
 
     def update(self, task_id: str, payload: dict) -> dict:
         current = self._require(task_id)
+        fields = self._editable(payload)
         supplied_version = payload.get("version")
-        if supplied_version is not None and int(supplied_version) != current.version:
-            from model_router.domain.execution_task import TaskConflict
-
-            raise TaskConflict("task version conflict")
-        updated = current.update(**self._editable(payload))
+        if supplied_version is not None:
+            if isinstance(supplied_version, bool) or not isinstance(supplied_version, int):
+                raise TaskValidationError("task version must be an integer")
+            if supplied_version != current.version:
+                raise TaskConflict("task version conflict")
+        updated = current.update(**fields)
         self.repository.update(updated, expected_version=current.version)
         return updated.to_dict()
 
     def delete(self, task_id: str) -> None:
-        task = self._require(task_id)
-        task.ensure_deletable()
-        self.repository.delete(task_id)
+        self.repository.delete(task_id, expected_status_not_in={"running", "validating"})
 
     def _require(self, task_id: str) -> ExecutionTask:
         task = self.repository.get(task_id)

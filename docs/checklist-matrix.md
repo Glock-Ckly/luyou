@@ -1,6 +1,6 @@
 # Checklist Completion Matrix
 
-审计基准：AI_Model_Router_工程化项目设计与执行清单.md 与 新执行清单.md。最新补充审计日期：2026-07-24。
+审计基准：`docs/AI_Model_Router_任务执行闭环_DDD_TDD改正清单.md`、`docs/AI_Model_Router_当前仓库状态审计与一体化任务路由实施路线图_2026-07-26.md` 与 `docs/AI_Model_Router_一体化任务路由_总执行流程与审计清单_2026-07-26.md`。最新补充审计日期：2026-07-26。
 
 ## Completed
 
@@ -15,9 +15,10 @@
 | HTTP API | /v1/chat/completions and native demo APIs |
 | Gateway security | Bearer auth, validation, safe errors, CORS allowlist, workdir allowlist, rate limit |
 | Trace and observability | request Trace ID, attempt events, request/success/failure/retry/fallback/latency metrics |
-| Unit, contract and integration tests | 31/31 deterministic tests |
+| Unit, contract and integration tests | 52/52 deterministic tests |
 | Docker delivery definition | Dockerfile, compose.yaml, health check, environment example |
-| Five-page demo | overview, routing, providers, reliability, architecture |
+| 六页 Demo | overview, routing, providers, reliability, architecture, tasks；Dashboard 检查 9/9 |
+| Persistent task catalog | ExecutionTask, TaskService, TaskRepository, SQLite adapter and authenticated `/api/tasks` CRUD |
 | Skills and bounded agents | 3 validated Skills and 4 role agents under skills/ |
 | Proto contract | proto/model_router.proto, explicitly future runtime boundary |
 

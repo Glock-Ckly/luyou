@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Iterable
@@ -22,6 +23,15 @@ TASK_TYPES = {
 }
 TASK_STATUSES = {"draft", "ready", "running", "validating", "completed", "failed", "cancelled"}
 TASK_PRIORITIES = {"low", "medium", "high", "urgent"}
+TASK_STATUS_TRANSITIONS = {
+    "draft": {"ready", "cancelled"},
+    "ready": {"running", "draft", "cancelled"},
+    "running": {"validating", "failed", "cancelled"},
+    "validating": {"completed", "failed", "running"},
+    "completed": set(),
+    "failed": {"ready", "cancelled"},
+    "cancelled": set(),
+}
 
 
 class TaskValidationError(ValueError):
@@ -55,8 +65,12 @@ def _choice(value: object, field_name: str, supported: set[str]) -> str:
 
 
 def _strings(values: Iterable[object] | None) -> tuple[str, ...]:
+    if values is None:
+        return ()
+    if isinstance(values, (str, bytes, Mapping)) or not isinstance(values, (list, tuple, set)):
+        raise TaskValidationError("collection fields must be lists, tuples or sets")
     normalized: list[str] = []
-    for value in values or ():
+    for value in values:
         item = str(value).strip()
         if item and item not in normalized:
             normalized.append(item)
@@ -129,12 +143,15 @@ class ExecutionTask:
             raise TaskValidationError(f"unsupported task fields: {', '.join(sorted(unknown))}")
         values = self.to_dict()
         values.update(changes)
+        next_status = _choice(values["status"], "status", TASK_STATUSES)
+        if "status" in changes:
+            self.ensure_transition_allowed(next_status)
         return replace(
             self,
             title=_required(values["title"], "title"),
             description=_required(values["description"], "description"),
             task_type=_choice(values["task_type"], "task_type", TASK_TYPES),
-            status=_choice(values["status"], "status", TASK_STATUSES),
+            status=next_status,
             priority=_choice(values["priority"], "priority", TASK_PRIORITIES),
             technology_stack=_strings(values["technology_stack"]),
             scope=str(values["scope"] or "").strip(),
@@ -147,6 +164,13 @@ class ExecutionTask:
     def ensure_deletable(self) -> None:
         if self.status in {"running", "validating"}:
             raise TaskConflict(f"task in {self.status} status cannot be deleted")
+
+    def ensure_transition_allowed(self, new_status: object) -> None:
+        normalized = _choice(new_status, "status", TASK_STATUSES)
+        if normalized != self.status and normalized not in TASK_STATUS_TRANSITIONS[self.status]:
+            raise TaskValidationError(
+                f"task status cannot transition from {self.status} to {normalized}"
+            )
 
     def to_dict(self) -> dict:
         return {

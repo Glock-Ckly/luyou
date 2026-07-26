@@ -1,20 +1,20 @@
 # AI Model Router 实施状态
 
-> 最后审计日期：2026-07-23
+> 最后审计日期：2026-07-26
 
 ## 总体结论
 
-五页工程化 Demo 已完成并可运行。DDD 执行核心、Provider Port/Adapter、统一 Dispatcher、OpenAI 兼容 Gateway、鉴权、校验、限流、健康过滤、Retry/Fallback、Trace、内存指标、Docker/Compose 定义、Skills 与边界 Agents 均已落地。
+六页工程化 Demo 已完成并可运行。DDD 执行核心、Provider Port/Adapter、统一 Dispatcher、OpenAI 兼容 Gateway、鉴权、校验、限流、健康过滤、Retry/Fallback、Trace、内存指标、持久化 Task CRUD、Docker/Compose 定义、Skills 与边界 Agents 均已落地。
 
 系统不是完整生产平台。gRPC 运行时、Runtime Agent、持久化 Observability、Circuit Breaker、Token/Cost 聚合、多实例状态和 Kubernetes 仍为部分或延期项。
 
 ## 当前验证
 
-| 检查 | 2026-07-23 结果 |
+| 检查 | 2026-07-26 结果 |
 |---|---|
-| 离线 unit/contract/integration | 31/31 通过 |
-| 五页 Demo 检查 | 7/7 通过 |
-| Browser UI | 5 页通过，无乱码与控制台错误 |
+| 离线 unit/contract/integration | 52/52 通过 |
+| 六页 Demo 检查 | 9/9 通过 |
+| Browser UI | Phase 13 任务页桌面/移动走查通过；其余五页沿用 2026-07-23 历史证据 |
 | Smoke Relay | 15/15 通过 |
 | L2 在线分类 | 20/25，80%，失败 |
 | Decomposer 在线评估 | 10/10 通过 |
@@ -31,9 +31,13 @@
 5. 单一公开 Dispatcher 执行路径
 6. OpenAI 兼容 HTTP、Bearer 鉴权、输入校验、安全错误、CORS、工作目录限制与基础限流
 7. Provider Registry、健康过滤、结构化事件与内存 Metrics
-8. UTF-8 五页 Demo 与真实 Trace/Attempt/Health/Metrics
+8. UTF-8 首批五页 Demo 与真实 Trace/Attempt/Health/Metrics
 9. Dockerfile、Compose、Healthcheck、环境说明与 Proto 边界
 10. 三个 Skills 与四个边界 Agents
+11. ExecutionTask 聚合、CRUD 规格与 SQLite 持久化边界
+12. 鉴权和限流保护下的 `/api/tasks` CRUD API
+13. 六页任务工作台及桌面/移动布局走查
+14. 仓库全量审计、Claude 交接报告与执行闭环路线图
 
 ## 已知问题与建议
 
@@ -42,5 +46,7 @@
 3. Provider Health 为被动配置健康：增加短超时主动探测、缓存与熔断状态，但不要在 Adapter 内决定路由。
 4. Metrics 非持久化：通过 ExecutionObserver Port 接入 OpenTelemetry/Prometheus，并聚合 Token Usage 与 Estimated Cost。
 5. Agent 仅为工程角色：若引入 Runtime Agent，必须先实现 Max Steps、Max Cost、Timeout、Skill 白名单和权限边界。
+6. Task CRUD 尚未形成 ExecutionJob：下一步按总执行清单建立 Snapshot、Plan、PromptPackage、模型绑定、执行凭证、验证与受限修复闭环。
+7. 路由输出只是候选决策；Codex 路径没有强制绑定推荐模型，Cursor queue 只表示排队，不表示完成。
 
 完整矩阵见 docs/checklist-matrix.md，阶段证据见 docs/assessment/。

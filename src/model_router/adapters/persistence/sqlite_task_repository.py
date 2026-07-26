@@ -4,9 +4,9 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Collection, Iterator
 
-from model_router.domain.execution_task import ExecutionTask, TaskConflict
+from model_router.domain.execution_task import ExecutionTask, TaskConflict, TaskNotFound
 
 
 class SQLiteTaskRepository:
@@ -107,9 +107,28 @@ class SQLiteTaskRepository:
             if cursor.rowcount != 1:
                 raise TaskConflict("task version conflict")
 
-    def delete(self, task_id: str) -> None:
+    def delete(
+        self, task_id: str, *, expected_status_not_in: Collection[str] = ()
+    ) -> None:
+        protected_statuses = tuple(sorted(set(expected_status_not_in)))
+        status_guard = ""
+        parameters: list[str] = [task_id]
+        if protected_statuses:
+            placeholders = ", ".join("?" for _ in protected_statuses)
+            status_guard = f" AND status NOT IN ({placeholders})"
+            parameters.extend(protected_statuses)
         with self._connection() as connection:
-            connection.execute("DELETE FROM execution_tasks WHERE task_id = ?", (task_id,))
+            cursor = connection.execute(
+                f"DELETE FROM execution_tasks WHERE task_id = ?{status_guard}", parameters
+            )
+            if cursor.rowcount == 1:
+                return
+            row = connection.execute(
+                "SELECT status FROM execution_tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+            if row is None:
+                raise TaskNotFound(f"task not found: {task_id}")
+            raise TaskConflict(f"task in {row['status']} status cannot be deleted")
 
     @staticmethod
     def _to_row(task: ExecutionTask) -> dict:
