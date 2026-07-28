@@ -18,6 +18,7 @@ DASHBOARD = ROOT / "dashboard"
 PORT = int(os.environ.get("MODEL_ROUTER_PORT", "1785"))
 _RATE_LIMITER = None
 _TASK_SERVICE = None
+_TASK_PLANNING_SERVICE = None
 
 
 def _src_imports():
@@ -38,6 +39,31 @@ def _task_service():
         )
         _TASK_SERVICE = TaskService(SQLiteTaskRepository(database_path))
     return _TASK_SERVICE
+
+
+def _task_planning_service():
+    global _TASK_PLANNING_SERVICE
+    if _TASK_PLANNING_SERVICE is None:
+        _src_imports()
+        from model_router.adapters.persistence.filesystem_task_plan_artifact import (
+            FilesystemTaskPlanArtifact,
+        )
+        from model_router.adapters.planning.deepseek_task_planner import DeepSeekTaskPlanner
+        from model_router.application.task_planning_service import TaskPlanningService
+        from model_router.domain.model_capabilities import build_planning_model_catalog
+        from routing_table import MODEL_CATALOG
+
+        artifact_path = Path(
+            os.environ.get("MODEL_ROUTER_TASK_PLAN_PATH", ROOT / ".runtime" / "task-plans")
+        )
+        model_catalog = build_planning_model_catalog(MODEL_CATALOG)
+        _TASK_PLANNING_SERVICE = TaskPlanningService(
+            task_service=_task_service(),
+            planner=DeepSeekTaskPlanner(),
+            artifact=FilesystemTaskPlanArtifact(artifact_path),
+            model_catalog=model_catalog,
+        )
+    return _TASK_PLANNING_SERVICE
 
 
 def _git_info() -> dict:
@@ -332,6 +358,15 @@ class Handler(BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
 
+    def _markdown_response(self, status: int, markdown: str):
+        body = markdown.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/markdown; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
+
     def _read_json(self) -> dict:
         _src_imports()
         from model_router.adapters.http.gateway import GatewayRequestError
@@ -471,6 +506,11 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
+        if path.startswith("/api/tasks/") and path.endswith("/plan.md"):
+            task_id = unquote(path.removeprefix("/api/tasks/").removesuffix("/plan.md"))
+            self._markdown_response(200, _task_planning_service().read_plan(task_id))
+            return
+
         if path.startswith("/api/tasks/"):
             task_id = unquote(path.removeprefix("/api/tasks/"))
             self._json_response(200, _task_service().get(task_id))
@@ -505,6 +545,15 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/reliability/simulate":
             self._json_response(200, simulate_reliability(body))
+            return
+
+        if path == "/api/tasks/analyze":
+            analysis = asyncio.run(_task_planning_service().analyze(body))
+            self._json_response(200, analysis)
+            return
+
+        if path == "/api/tasks/from-analysis":
+            self._json_response(201, _task_planning_service().create_from_analysis(body))
             return
 
         if path == "/api/tasks":
@@ -553,7 +602,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     host = os.environ.get("MODEL_ROUTER_HOST", "127.0.0.1")
     server = ThreadingHTTPServer((host, PORT), Handler)
-    print(f"luyou five-page demo -> http://{host}:{PORT}")
+    print(f"luyou six-page demo -> http://{host}:{PORT}")
     print("API -> GET /health | /api/meta | /api/catalog | /api/specs | /api/metrics")
     print("API -> POST /v1/chat/completions | /api/route | /api/reliability/simulate")
     try:

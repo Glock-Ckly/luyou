@@ -1,6 +1,6 @@
 # Checklist Completion Matrix
 
-审计基准：`docs/AI_Model_Router_任务执行闭环_DDD_TDD改正清单.md`、`docs/AI_Model_Router_当前仓库状态审计与一体化任务路由实施路线图_2026-07-26.md` 与 `docs/AI_Model_Router_一体化任务路由_总执行流程与审计清单_2026-07-26.md`。最新补充审计日期：2026-07-26。
+审计基准：`docs/AI_Model_Router_任务执行闭环_DDD_TDD改正清单.md`、`docs/AI_Model_Router_当前仓库状态审计与一体化任务路由实施路线图_2026-07-26.md`、`docs/AI_Model_Router_一体化任务路由_总执行流程与审计清单_2026-07-26.md` 与 `docs/AI_Model_Router_DeepSeek自动任务规划_执行流程_2026-07-28.md`。最新补充审计日期：2026-07-28。
 
 ## Completed
 
@@ -15,10 +15,11 @@
 | HTTP API | /v1/chat/completions and native demo APIs |
 | Gateway security | Bearer auth, validation, safe errors, CORS allowlist, workdir allowlist, rate limit |
 | Trace and observability | request Trace ID, attempt events, request/success/failure/retry/fallback/latency metrics |
-| Unit, contract and integration tests | 56/56 deterministic tests |
+| Unit, contract and integration tests | 80/80 deterministic tests |
 | Docker delivery definition | Dockerfile, compose.yaml, health check, environment example |
-| 六页 Demo | overview, routing, providers, reliability, architecture, tasks；Dashboard 检查 9/9 |
+| 六页 Demo | overview, routing, providers, reliability, architecture, tasks；Dashboard 检查 10/10 |
 | Persistent task catalog | ExecutionTask, TaskService, TaskRepository, SQLite adapter and authenticated `/api/tasks` CRUD |
+| Goal-first task planning | DeepSeek planner, validated TaskAnalysis, model capability boundaries, deterministic Markdown, confirmation API and artifact rollback |
 | Execution closure specification | OpenSpec-style index plus Job, PromptPackage, binding, verification, Artifact, cost and terminology contracts; ADR-009 to ADR-014 |
 | Skills and bounded agents | 3 validated Skills and 4 role agents under skills/ |
 | Proto contract | proto/model_router.proto, explicitly future runtime boundary |
@@ -37,6 +38,7 @@
 | Docker execution | Definition present | Build and health-test image in CI or a Docker-enabled host |
 | Online L2 quality | 20/25 current run | Add deterministic guardrails, freeze model/version and expand regression data |
 | Route-to-execution closure | Provider calls and Codex CLI calls exist, but model binding, complete project-aware PromptPackage, persistent ExecutionJob and automatic verification are not complete | Execute docs/AI_Model_Router_任务执行闭环_DDD_TDD改正清单.md phase by phase |
+| Planned child tasks | Subtasks are validated and rendered in the analysis/Markdown only | Add parent-child identity and persist an ExecutionJob/DAG after confirmation |
 
 ## Deferred by architecture decision
 

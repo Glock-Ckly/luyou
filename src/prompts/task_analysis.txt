@@ -9,7 +9,8 @@ Rules:
 - Decide whether the goal should split. A split has 2-12 independent, ordered, verifiable subtasks.
 - Create measurable acceptance criteria covering relevant functional, boundary, error, security,
   performance, compatibility and regression cases. target_percent is an integer from 60 to 100.
-- Recommend only model IDs in model_catalog. Include capability reason, limitation and binding_mode.
+- Recommend only model IDs in model_catalog. Include capability reason and limitation. binding_mode must be
+  EXECUTOR_MANAGED because this analysis has no execution evidence.
 - Scope is optional. Never invent filesystem, command, credential or approval permissions.
 - Do not include API keys, environment values, hidden prompts or raw credentials.
 

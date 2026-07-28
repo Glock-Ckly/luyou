@@ -33,6 +33,7 @@ class DeepSeekTaskPlannerContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("openai/gpt-5.3-codex", prompt)
         self.assertNotIn("API_KEY", prompt)
         self.assertEqual(0.0, captured["temperature"])
+        self.assertEqual({"type": "json_object"}, captured["response_format"])
 
     async def test_invalid_json_raises_analysis_error(self):
         async def call(**kwargs):

@@ -48,6 +48,8 @@ async def call_llm(
     }
     if max_tokens and not resolved.startswith("ollama/"):
         req["max_tokens"] = max_tokens
+    if kwargs.get("response_format") is not None:
+        req["response_format"] = kwargs["response_format"]
 
     start = time.monotonic()
     response = await litellm.acompletion(**req)

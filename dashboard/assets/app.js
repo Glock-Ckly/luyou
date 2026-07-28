@@ -29,10 +29,23 @@ function apiHeaders(extra = {}) {
   return {...extra, ...(token ? {Authorization: 'Bearer ' + token} : {})};
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, retryWithToken = true) {
   const response = await fetch(path, {...options, headers: apiHeaders(options.headers)});
-  const data = response.status === 204 ? null : await response.json();
-  if (!response.ok) throw new Error(data.error?.message || data.error || response.statusText);
+  const contentType = response.headers.get('Content-Type') || '';
+  const data = response.status === 204 ? null : contentType.includes('json') ? await response.json() : await response.text();
+  if (response.status === 401 && retryWithToken) {
+    const token = window.prompt('本地服务需要 API Token，请输入 MODEL_ROUTER_API_TOKEN：', '');
+    if (token?.trim()) {
+      localStorage.setItem('model_router_api_token', token.trim());
+      return api(path, options, false);
+    }
+  }
+  if (!response.ok) {
+    const error = new Error(data?.error?.message || data?.error || data || response.statusText);
+    error.status = response.status;
+    error.code = data?.error?.code || 'request_failed';
+    throw error;
+  }
   return data;
 }
 
@@ -187,7 +200,9 @@ async function initArchitecture() {
   specs.quality_gates.forEach((gate) => document.getElementById('quality-gates').append(el('li', '', gate)));
 }
 
-const taskState = {items: [], selected: null, status: '', taskType: '', search: ''};
+const taskState = {
+  items: [], selected: null, status: '', taskType: '', search: '', analysis: null, planUrls: {},
+};
 
 const taskLabels = {
   draft: '草稿', ready: '待执行', running: '执行中', validating: '验证中',
@@ -218,6 +233,16 @@ function openTaskDialog(task = null) {
   const dialog = document.getElementById('task-dialog');
   document.getElementById('task-form').reset();
   document.getElementById('task-form-error').textContent = '';
+  taskState.analysis = null;
+  document.getElementById('task-analysis-preview').hidden = true;
+  document.getElementById('task-plan-link').hidden = true;
+  document.getElementById('task-confirm-analysis').disabled = true;
+  document.getElementById('task-confirm-analysis').textContent = '确认创建任务';
+  document.getElementById('task-analyze').disabled = false;
+  document.getElementById('task-goal').disabled = false;
+  document.getElementById('task-analysis-scope').disabled = false;
+  document.getElementById('task-cancel').textContent = '取消';
+  setText('task-analysis-status', '等待输入任务目标');
   document.getElementById('task-id').value = task?.task_id || '';
   document.getElementById('task-version').value = task?.version || '';
   document.getElementById('task-title').value = task?.title || '';
@@ -229,9 +254,135 @@ function openTaskDialog(task = null) {
   document.getElementById('task-scope').value = task?.scope || '';
   document.getElementById('task-criteria').value = (task?.acceptance_criteria || []).join('\n');
   document.getElementById('task-tags').value = (task?.tags || []).join(', ');
-  document.getElementById('task-form-kicker').textContent = task ? 'Edit Task' : 'Create Task';
-  document.getElementById('task-form-title').textContent = task ? '编辑执行任务' : '新建执行任务';
+  document.getElementById('task-form-kicker').textContent = task ? 'Edit Task' : 'Goal First';
+  document.getElementById('task-form-title').textContent = task ? '编辑执行任务' : '新建智能规划任务';
+  document.getElementById('task-planning-fields').hidden = Boolean(task);
+  document.getElementById('task-planning-actions').hidden = Boolean(task);
+  document.getElementById('task-manual-fields').hidden = !task;
+  document.getElementById('task-edit-actions').hidden = !task;
   dialog.showModal();
+}
+
+function appendAnalysisRows(container, items, render) {
+  container.replaceChildren();
+  if (!items?.length) {
+    container.append(el('div', 'task-analysis-empty', '无需拆分'));
+    return;
+  }
+  items.forEach((item, index) => container.append(render(item, index)));
+}
+
+function renderTaskAnalysis(analysis) {
+  const preview = document.getElementById('task-analysis-preview');
+  const summary = document.getElementById('task-analysis-summary');
+  summary.replaceChildren();
+  const heading = el('div', 'task-analysis-heading');
+  heading.append(el('h3', '', analysis.suggested_title), el('p', '', analysis.goal_summary));
+  const badges = el('div', 'task-card-badges');
+  badges.append(
+    taskBadge(analysis.initial_status, 'status'),
+    taskBadge(analysis.priority, 'priority'),
+    el('span', 'task-chip', analysis.task_type),
+    el('span', 'task-chip', analysis.complexity),
+    el('span', 'task-chip', '目标通过率 ' + analysis.coverage_target_percent + '%'),
+  );
+  summary.append(heading, badges, el('p', 'task-analysis-reasoning', analysis.reasoning));
+
+  const stack = document.getElementById('task-technology-stack');
+  stack.replaceChildren(...analysis.technology_stack.map((technology) => el('span', '', technology)));
+
+  appendAnalysisRows(document.getElementById('task-acceptance-criteria'), analysis.acceptance_criteria, (criterion) => {
+    const row = el('article', 'task-analysis-item');
+    const title = el('strong', '', criterion.criterion);
+    const meta = el('span', '', criterion.category + ' · ' + criterion.target_percent + '%');
+    row.append(title, meta, el('p', '', criterion.verification));
+    return row;
+  });
+
+  appendAnalysisRows(document.getElementById('task-subtasks'), analysis.subtasks, (subtask, index) => {
+    const row = el('article', 'task-analysis-item');
+    row.append(
+      el('strong', '', (index + 1) + '. ' + subtask.title),
+      el('span', '', subtask.task_type + ' · ' + subtask.complexity + ' · ' + subtask.binding_mode),
+      el('p', '', subtask.description),
+      el('small', '', '模型 ' + subtask.recommended_model + ' · ' + subtask.technology_stack.join(' / ')),
+    );
+    return row;
+  });
+
+  appendAnalysisRows(document.getElementById('task-model-recommendations'), analysis.recommended_models, (model) => {
+    const row = el('article', 'task-analysis-item');
+    row.append(
+      el('strong', '', model.model_id),
+      el('span', '', model.role + ' · ' + model.binding_mode),
+      el('p', '', model.reason),
+      el('small', '', '优势：' + model.strengths.join(' / ') + '；边界：' + model.limitations.join(' / ')),
+    );
+    return row;
+  });
+
+  const clarification = document.getElementById('task-clarification-section');
+  clarification.hidden = !analysis.clarification_questions?.length;
+  appendAnalysisRows(
+    document.getElementById('task-clarification-questions'),
+    analysis.clarification_questions || [],
+    (question) => el('div', 'task-analysis-item', question),
+  );
+  preview.hidden = false;
+}
+
+async function analyzeTaskGoal() {
+  const goal = document.getElementById('task-goal').value.trim();
+  const scope = document.getElementById('task-analysis-scope').value.trim();
+  if (goal.length < 10) throw new Error('完整任务目标至少需要 10 个字符');
+  const button = document.getElementById('task-analyze');
+  button.disabled = true;
+  setText('task-analysis-status', 'DeepSeek 正在分析任务');
+  try {
+    const analysis = await api('/api/tasks/analyze', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({goal, scope}),
+    });
+    taskState.analysis = analysis;
+    renderTaskAnalysis(analysis);
+    document.getElementById('task-confirm-analysis').disabled = false;
+    setText('task-analysis-status', '分析完成，确认后才会创建任务');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function confirmTaskAnalysis() {
+  if (!taskState.analysis) throw new Error('请先完成任务分析');
+  const button = document.getElementById('task-confirm-analysis');
+  button.disabled = true;
+  setText('task-analysis-status', '正在创建任务与 Markdown 清单');
+  const created = await api('/api/tasks/from-analysis', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({analysis: taskState.analysis}),
+  });
+  taskState.planUrls[created.task_id] = created.plan_url;
+  const link = document.getElementById('task-plan-link');
+  link.href = created.plan_url;
+  link.hidden = false;
+  button.textContent = '任务已创建';
+  document.getElementById('task-analyze').disabled = true;
+  document.getElementById('task-goal').disabled = true;
+  document.getElementById('task-analysis-scope').disabled = true;
+  document.getElementById('task-cancel').textContent = '完成';
+  setText('task-analysis-status', '任务与执行清单已保存');
+  await loadTasks(created.task_id);
+  showToast('任务已创建，可打开 Markdown 清单');
+}
+
+async function runTaskAction(action, errorNode = null) {
+  try {
+    if (errorNode) errorNode.textContent = '';
+    return await action();
+  } catch (error) {
+    const message = error?.message || '请求失败';
+    if (errorNode) errorNode.textContent = message;
+    showToast(message);
+    return null;
+  }
 }
 
 function taskBadge(value, kind) {
@@ -265,6 +416,13 @@ function renderTaskDetail() {
   ];
   rows.forEach(([name, value]) => { metadata.append(el('dt', '', name), el('dd', '', value)); });
   detail.append(title, badges, description, metadata);
+  if (taskState.planUrls[task.task_id]) {
+    const planLink = el('a', 'task-detail-plan-link', '打开 Markdown 执行清单');
+    planLink.href = taskState.planUrls[task.task_id];
+    planLink.target = '_blank';
+    planLink.rel = 'noopener';
+    detail.append(planLink);
+  }
   setText('task-detail-version', 'v' + task.version);
   edit.disabled = false;
   remove.disabled = ['running', 'validating'].includes(task.status);
@@ -326,36 +484,52 @@ async function deleteTask(task) {
 
 async function initTasks() {
   document.getElementById('task-create').addEventListener('click', () => openTaskDialog());
-  document.getElementById('task-refresh').addEventListener('click', () => loadTasks());
+  document.getElementById('task-refresh').addEventListener('click', () => runTaskAction(() => loadTasks()));
   document.getElementById('task-dialog-close').addEventListener('click', () => document.getElementById('task-dialog').close());
   document.getElementById('task-cancel').addEventListener('click', () => document.getElementById('task-dialog').close());
+  document.getElementById('task-edit-cancel').addEventListener('click', () => document.getElementById('task-dialog').close());
+  document.getElementById('task-analyze').addEventListener('click', () => runTaskAction(
+    analyzeTaskGoal, document.getElementById('task-form-error'),
+  ));
+  document.getElementById('task-confirm-analysis').addEventListener('click', () => runTaskAction(
+    confirmTaskAnalysis, document.getElementById('task-form-error'),
+  ));
   document.getElementById('task-search-form').addEventListener('submit', (event) => {
-    event.preventDefault(); taskState.search = document.getElementById('task-search').value.trim(); loadTasks();
+    event.preventDefault();
+    taskState.search = document.getElementById('task-search').value.trim();
+    runTaskAction(() => loadTasks());
   });
-  document.getElementById('task-type-filter').addEventListener('change', (event) => { taskState.taskType = event.target.value; loadTasks(); });
+  document.getElementById('task-type-filter').addEventListener('change', (event) => {
+    taskState.taskType = event.target.value;
+    runTaskAction(() => loadTasks());
+  });
   document.querySelectorAll('[data-task-status]').forEach((button) => button.addEventListener('click', () => {
     document.querySelectorAll('[data-task-status]').forEach((item) => item.classList.toggle('active', item === button));
-    taskState.status = button.dataset.taskStatus; loadTasks();
+    taskState.status = button.dataset.taskStatus;
+    runTaskAction(() => loadTasks());
   }));
   document.getElementById('task-list').addEventListener('click', (event) => {
     const card = event.target.closest('[data-task-id]'); if (!card) return;
     const task = taskState.items.find((item) => item.task_id === card.dataset.taskId); if (!task) return;
     const action = event.target.closest('[data-action]')?.dataset.action || 'view';
     taskState.selected = task;
-    if (action === 'edit') openTaskDialog(task); else if (action === 'delete') deleteTask(task); else renderTasks();
+    if (action === 'edit') openTaskDialog(task);
+    else if (action === 'delete') runTaskAction(() => deleteTask(task));
+    else renderTasks();
   });
   document.getElementById('task-edit').addEventListener('click', () => openTaskDialog(taskState.selected));
-  document.getElementById('task-delete').addEventListener('click', () => deleteTask(taskState.selected));
+  document.getElementById('task-delete').addEventListener('click', () => runTaskAction(() => deleteTask(taskState.selected)));
   document.getElementById('task-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const id = document.getElementById('task-id').value;
-    const error = document.getElementById('task-form-error'); error.textContent = '';
-    try {
+    if (!id) return;
+    const error = document.getElementById('task-form-error');
+    await runTaskAction(async () => {
       const saved = await api(id ? '/api/tasks/' + encodeURIComponent(id) : '/api/tasks', {
         method: id ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(taskPayload()),
       });
       document.getElementById('task-dialog').close(); await loadTasks(saved.task_id); showToast(id ? '任务已更新' : '任务已创建');
-    } catch (requestError) { error.textContent = requestError.message; }
+    }, error);
   });
   await loadTasks();
 }

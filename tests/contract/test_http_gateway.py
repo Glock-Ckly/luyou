@@ -18,6 +18,12 @@ from model_router.adapters.http.gateway import (
     resolve_workdir,
     safe_error_payload,
 )
+from model_router.domain.task_analysis import (
+    TaskAnalysisError,
+    TaskPlanNotFound,
+    TaskPlannerUnavailable,
+    TaskPlanningFailed,
+)
 
 
 class HttpGatewayContractTests(unittest.TestCase):
@@ -69,6 +75,19 @@ class HttpGatewayContractTests(unittest.TestCase):
         self.assertEqual(500, status)
         self.assertNotIn("top-secret", str(payload))
         self.assertEqual("internal_error", payload["error"]["code"])
+
+    def test_planning_errors_have_stable_http_contract(self):
+        cases = (
+            (TaskAnalysisError("invalid analysis"), 400, "invalid_task_analysis"),
+            (TaskPlanningFailed("analysis failed"), 502, "task_analysis_failed"),
+            (TaskPlannerUnavailable("planner unavailable"), 503, "task_planner_unavailable"),
+            (TaskPlanNotFound("plan missing"), 404, "task_plan_not_found"),
+        )
+        for error, expected_status, expected_code in cases:
+            with self.subTest(expected_code=expected_code):
+                status, payload = safe_error_payload(error)
+                self.assertEqual(expected_status, status)
+                self.assertEqual(expected_code, payload["error"]["code"])
 
     def test_rate_limit_returns_normalized_429(self):
         limiter = InMemoryRateLimiter()

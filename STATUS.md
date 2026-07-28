@@ -1,20 +1,20 @@
 # AI Model Router 实施状态
 
-> 最后审计日期：2026-07-26
+> 最后审计日期：2026-07-28
 
 ## 总体结论
 
-六页工程化 Demo 已完成并可运行。DDD 执行核心、Provider Port/Adapter、统一 Dispatcher、OpenAI 兼容 Gateway、鉴权、校验、限流、健康过滤、Retry/Fallback、Trace、内存指标、持久化 Task CRUD、Docker/Compose 定义、Skills 与边界 Agents 均已落地。
+六页工程化 Demo 已完成并可运行。DDD 执行核心、Provider Port/Adapter、统一 Dispatcher、OpenAI 兼容 Gateway、DeepSeek Goal-first Planning、确定性 Markdown、鉴权、限流、Retry/Fallback、Trace、持久化 Task CRUD、Docker/Compose 定义、Skills 与边界 Agents 均已落地。
 
 系统不是完整生产平台。gRPC 运行时、Runtime Agent、持久化 Observability、Circuit Breaker、Token/Cost 聚合、多实例状态和 Kubernetes 仍为部分或延期项。
 
 ## 当前验证
 
-| 检查 | 2026-07-26 结果 |
+| 检查 | 2026-07-28 结果 |
 |---|---|
-| 离线 unit/contract/integration | 56/56 通过 |
-| 六页 Demo 检查 | 9/9 通过 |
-| Browser UI | Phase 13 任务页桌面/移动走查通过；其余五页沿用 2026-07-23 历史证据 |
+| 离线 unit/contract/integration | 80/80 通过 |
+| 六页 Demo 检查 | 10/10 通过 |
+| Browser UI | Goal-first 任务页 1440x1000 与 390x844 Playwright 走查通过；其余页面沿用历史证据 |
 | Smoke Relay | 15/15 通过 |
 | L2 在线分类 | 20/25，80%，失败 |
 | Decomposer 在线评估 | 10/10 通过 |
@@ -40,6 +40,8 @@
 14. 仓库全量审计、Claude 交接报告与执行闭环路线图
 15. Task 基线校准、严格输入/状态契约与原子删除
 16. OpenSpec 风格执行闭环规格索引与 ADR-009 至 ADR-014
+17. DeepSeek Goal-first 分析、技术栈/复杂度/通过率/标签、子任务和模型建议
+18. 确定性 Markdown、确认创建、Artifact 补偿、鉴权恢复与嵌套式任务 UI
 
 ## 已知问题与建议
 
@@ -48,7 +50,7 @@
 3. Provider Health 为被动配置健康：增加短超时主动探测、缓存与熔断状态，但不要在 Adapter 内决定路由。
 4. Metrics 非持久化：通过 ExecutionObserver Port 接入 OpenTelemetry/Prometheus，并聚合 Token Usage 与 Estimated Cost。
 5. Agent 仅为工程角色：若引入 Runtime Agent，必须先实现 Max Steps、Max Cost、Timeout、Skill 白名单和权限边界。
-6. Task CRUD 尚未形成 ExecutionJob：下一步按总执行清单建立 Snapshot、Plan、PromptPackage、模型绑定、执行凭证、验证与受限修复闭环。
+6. Planning 已生成子任务清单但尚未形成持久化 ExecutionJob/DAG：下一步建立 Snapshot、PromptPackage、模型绑定证据、执行凭证、验证与受限修复闭环。
 7. 路由输出只是候选决策；Codex 路径没有强制绑定推荐模型，Cursor queue 只表示排队，不表示完成。
 
 完整矩阵见 docs/checklist-matrix.md，阶段证据见 docs/assessment/。

@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body data-page="tasks">
-  <header data-header></header>
   <main class="task-page">
     <section class="task-market-header">
       <div class="task-market-brand">
@@ -78,8 +77,8 @@
           <div class="task-panel-title"><span>执行流水线</span><small>边界视图</small></div>
           <ol class="task-pipeline">
             <li class="done"><b>1</b><span>Task<small>结构化任务 CRUD</small></span></li>
-            <li><b>2</b><span>Plan<small>待接入规划聚合</small></span></li>
-            <li><b>3</b><span>Prompt<small>待接入提示词编译</small></span></li>
+            <li class="done"><b>2</b><span>Plan<small>DeepSeek 规划与清单</small></span></li>
+            <li class="done"><b>3</b><span>Prompt<small>结构化分析提示词</small></span></li>
             <li><b>4</b><span>Route<small>已有候选模型路由</small></span></li>
             <li><b>5</b><span>Execute<small>Provider / Codex 执行</small></span></li>
             <li><b>6</b><span>Validate<small>待接入验收与修复</small></span></li>
@@ -98,11 +97,50 @@
   </main>
 
   <dialog id="task-dialog" class="task-dialog">
-    <form id="task-form" method="dialog">
-      <header><div><small id="task-form-kicker">Create Task</small><h2 id="task-form-title">新建执行任务</h2></div><button id="task-dialog-close" type="button" aria-label="关闭">×</button></header>
+    <form id="task-form">
+      <header><div><small id="task-form-kicker">Goal First</small><h2 id="task-form-title">新建智能规划任务</h2></div><button id="task-dialog-close" type="button" aria-label="关闭">×</button></header>
       <input id="task-id" type="hidden">
       <input id="task-version" type="hidden">
-      <div class="task-form-grid">
+
+      <section id="task-planning-fields" class="task-planning-fields">
+        <div class="task-goal-entry">
+          <label for="task-goal">完整任务目标</label>
+          <textarea id="task-goal" minlength="10" maxlength="20000" rows="7" placeholder="输入完整任务、背景、限制、交付物与预期结果。系统将自动判断技术栈、任务类型、复杂度、验收通过率、拆分方式和模型分配。"></textarea>
+          <label for="task-analysis-scope">范围边界（可选）</label>
+          <textarea id="task-analysis-scope" maxlength="10000" rows="3" placeholder="可留空；只填写明确负责或不负责的边界，不填写密钥。"></textarea>
+          <div class="task-planning-command">
+            <span id="task-analysis-status">等待输入任务目标</span>
+            <button id="task-analyze" class="task-primary-button" type="button">分析并生成清单</button>
+          </div>
+        </div>
+
+        <div id="task-analysis-preview" class="task-analysis-preview" hidden>
+          <div id="task-analysis-summary" class="task-analysis-summary"></div>
+          <section>
+            <h3>技术栈</h3>
+            <div id="task-technology-stack" class="task-analysis-chips"></div>
+          </section>
+          <section>
+            <h3>验收标准</h3>
+            <div id="task-acceptance-criteria" class="task-analysis-list"></div>
+          </section>
+          <section>
+            <h3>子任务拆分</h3>
+            <div id="task-subtasks" class="task-analysis-list"></div>
+          </section>
+          <section>
+            <h3>模型分配</h3>
+            <div id="task-model-recommendations" class="task-analysis-list"></div>
+          </section>
+          <section id="task-clarification-section" hidden>
+            <h3>待澄清</h3>
+            <div id="task-clarification-questions" class="task-analysis-list"></div>
+          </section>
+          <a id="task-plan-link" class="task-plan-link" href="#" target="_blank" rel="noopener" hidden>打开 Markdown 执行清单</a>
+        </div>
+      </section>
+
+      <div id="task-manual-fields" class="task-form-grid" hidden>
         <label class="wide">任务标题<input id="task-title" required maxlength="120" placeholder="例如：实现任务规划与提示词编译"></label>
         <label class="wide">任务描述<textarea id="task-description" required rows="4" placeholder="描述目标、背景、限制与预期结果"></textarea></label>
         <label>任务类型<select id="task-type" required><option value="implementation">功能实现</option><option value="architecture">架构设计</option><option value="debugging">问题调试</option><option value="refactor">代码重构</option><option value="code_patch">代码补丁</option><option value="file_edit">文件编辑</option><option value="system_design">系统设计</option><option value="deep_reasoning">深度推理</option></select></label>
@@ -113,7 +151,11 @@
         <label class="wide">验收标准<textarea id="task-criteria" rows="3" placeholder="每行一条可验证标准"></textarea></label>
         <label class="wide">标签<input id="task-tags" placeholder="crud, ddd, tdd"></label>
       </div>
-      <footer><span id="task-form-error" role="alert"></span><div><button id="task-cancel" type="button">取消</button><button class="task-primary-button" type="submit">保存任务</button></div></footer>
+      <footer>
+        <span id="task-form-error" role="alert"></span>
+        <div id="task-planning-actions"><button id="task-cancel" type="button">取消</button><button id="task-confirm-analysis" class="task-primary-button" type="button" disabled>确认创建任务</button></div>
+        <div id="task-edit-actions" hidden><button id="task-edit-cancel" type="button">取消</button><button class="task-primary-button" type="submit">保存修改</button></div>
+      </footer>
     </form>
   </dialog>
   <footer data-footer></footer>

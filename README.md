@@ -2,7 +2,7 @@
 
 `luyou` 是一个基于 Python 3.12、DDD、TDD 与 Ports & Adapters 构建的 AI 模型路由和任务执行平台 Demo。系统分析任务类型、复杂度、能力、预算与 Provider 状态，生成可解释的候选模型决策，并通过有限重试、顺序 Fallback、Trace 和确定性测试保障基础可靠性。
 
-当前版本已经具备模型路由、Provider 执行、持久化任务 CRUD、可靠性模拟和六页管理工作台；ExecutionJob、多 Agent DAG、自动验证、受限修复与成本台账已完成规格设计，但尚未实现完整运行时闭环。
+当前版本已经具备模型路由、Provider 执行、持久化任务 CRUD、DeepSeek Goal-first 任务分析、确定性 Markdown 清单、可靠性模拟和六页管理工作台；ExecutionJob、多 Agent DAG、自动验证、受限修复与成本台账已完成规格设计，但尚未实现完整运行时闭环。
 
 ## 当前能力
 
@@ -15,6 +15,8 @@
 - Bearer 鉴权、CORS allowlist、工作目录限制和内存限流。
 - Trace ID、Attempt 事件、请求指标和可靠性故障模拟。
 - `ExecutionTask` 聚合、SQLite 持久化、乐观锁和原子删除。
+- DeepSeek 自动技术栈、任务类型、复杂度、标签、通过率、子任务和模型建议分析。
+- 后端确定性 Markdown 清单、SHA-256 内容哈希、确认后创建与失败补偿。
 - 六页原生 HTML/CSS/JavaScript 工作台。
 - Dockerfile、Compose、可复用 Skills 与边界 Agents。
 
@@ -60,7 +62,7 @@ flowchart LR
 | Routing | 分类、候选模型、预算和路由决策 | 已实现 |
 | Provider | 模型调用、错误归一化、健康与 Usage | 已实现 |
 | Execution | Retry/Fallback；未来 Job、Attempt、Receipt | 部分实现 |
-| Planning | Specification、ProjectSnapshot、DAG Plan | 已规格化 |
+| Planning | Goal 分析、技术栈、验收标准、分解、模型建议与 Markdown | 第一阶段已实现 |
 | Verification | 验收命令、证据和成功判定 | 已规格化 |
 | Delivery | Artifact 与最终报告 | 已规格化 |
 | Cost | 预算预留、Token 和实际成本 | 已规格化 |
@@ -101,6 +103,7 @@ $env:MODEL_ROUTER_ALLOWED_ORIGINS = "http://127.0.0.1:1785,http://localhost:1785
 $env:MODEL_ROUTER_ALLOWED_WORKDIRS = "C:\Codex"
 $env:MODEL_ROUTER_RATE_LIMIT_PER_MINUTE = "120"
 $env:MODEL_ROUTER_DB_PATH = "C:\Codex\luyou\.runtime\model-router.db"
+$env:DEEPSEEK_API_KEY = "set-in-process-environment-only"
 ```
 
 ### 3. 启动
@@ -124,7 +127,7 @@ curl.exe http://127.0.0.1:1785/health
 | Provider 目录 | `/providers.html` | 运行时模型目录与 Provider 健康状态 |
 | 可靠性实验室 | `/reliability.html` | Timeout、Retry、Fallback 与 Fail-fast 模拟 |
 | 架构与规格 | `/architecture.html` | DDD 边界、ADR、质量门禁与延期项 |
-| 任务工作台 | `/tasks.html` | SQLite Task CRUD、筛选、详情与生命周期保护 |
+| 任务工作台 | `/tasks.html` | Goal-first DeepSeek 分析、清单确认、SQLite Task CRUD 与鉴权恢复 |
 
 ## HTTP API
 
@@ -153,7 +156,10 @@ curl.exe http://127.0.0.1:1785/health
 |---|---|---|
 | GET | `/api/tasks` | 列表、搜索与筛选 |
 | POST | `/api/tasks` | 创建 Task |
+| POST | `/api/tasks/analyze` | DeepSeek 分析 Goal 与可选 Scope；不创建 Task |
+| POST | `/api/tasks/from-analysis` | 校验分析并创建 Task 与 Markdown 清单 |
 | GET | `/api/tasks/<task_id>` | Task 详情 |
+| GET | `/api/tasks/<task_id>/plan.md` | 读取后端生成的 UTF-8 Markdown 清单 |
 | PUT | `/api/tasks/<task_id>` | 更新并校验版本和状态跃迁 |
 | DELETE | `/api/tasks/<task_id>` | 原子删除；运行中或验证中返回 409 |
 
@@ -187,8 +193,8 @@ Specification -> DDD Boundary -> Contract -> Red Tests
 
 当前确定性基线：
 
-- `python -m unittest discover -s tests -v`：56/56 通过（2026-07-26）
-- `python scripts/test_dashboard_demo.py`：9/9 通过（2026-07-26）
+- `python -m unittest discover -s tests -v`：80/80 通过（2026-07-28）
+- `python scripts/test_dashboard_demo.py`：10/10 通过（2026-07-28）
 - `node --check dashboard/assets/app.js`：通过
 - `git diff --check`：通过
 
@@ -234,13 +240,14 @@ docker compose up --build
 
 ## 下一阶段
 
-下一阶段是实现纯领域层 `ExecutionJob` 聚合：10 态状态机、幂等 Job ID、Attempt 序列、预算、FileScope、终态保护和 Verification 前置条件。持久化、HTTP、Executor 与 UI 将在后续独立阶段接入。
+下一阶段是把已确认的父 Task 与分析中的子任务转换为持久化 `ExecutionJob` / DAG，并编译执行级 PromptPackage；之后才接入受约束模型执行、VerificationReport 与成本结算。
 
 ## 真实性边界
 
 - gRPC 已设计边界，但没有运行时服务。
 - OpenSpec 风格规格已落地，但未采用 OpenSpec CLI。
 - Codex 当前无法证明强制使用推荐模型，只能标记为 `EXECUTOR_MANAGED`。
+- DeepSeek 分析与 Task 创建不等于子任务已持久化、模型已调用或交付物已验证。
 - Provider 返回文本不代表仓库修改或验收通过。
 - `routed`、`queued`、`answered`、`executed`、`verified`、`delivered` 是不同状态。
 - 只有 VerificationReport 为 PASS，未来 ExecutionJob 才能进入 SUCCEEDED。
