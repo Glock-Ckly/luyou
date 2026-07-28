@@ -23,7 +23,7 @@ Verification remains the only authority that can declare acceptance success.
 
 - Red-only boundary: specification, prompt and tests; no production implementation changed.
 - Secret scan: no committed API-key-shaped value found.
-- Expected Red result: 17 new offline tests and 1 new dashboard test define the implementation contract.
+- Expected Red result: 21 new offline tests and 1 new dashboard test define the implementation contract.
 
 ## Follow-up
 
@@ -33,3 +33,4 @@ turn these failures Green.
 ## Commit
 
 Red contract commit: `7cefb98612a82efb831e253bf326003aba614836`.
+Application-service Red addendum: recorded by the immediately following Git history entry.
