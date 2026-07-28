@@ -43,4 +43,4 @@ Non-goals are Task execution, enforced model binding, child-task persistence and
 
 ## Commit
 
-Implementation hash will be recorded in the immediately following audit update after push.
+Implementation commit: `5a1e625c090981d0d7ef8a48f18b4b1c4793b72a`.
