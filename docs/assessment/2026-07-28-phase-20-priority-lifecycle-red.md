@@ -19,4 +19,4 @@ light search-input colors are not implemented yet.
 
 ## Commit
 
-Red commit hash will be recorded after push.
+Red contract commit: `ad9bfe1635df408ac40578cdf97bbb3637d47487`.
