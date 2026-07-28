@@ -19,6 +19,7 @@ def valid_analysis() -> dict:
         "task_type": "implementation",
         "complexity": "T3",
         "priority": "high",
+        "priority_reason": "Security impact and cross-service dependencies require early attention",
         "technology_stack": ["Python", "FastAPI", "PostgreSQL"],
         "scope": "",
         "coverage_target_percent": 95,
@@ -100,6 +101,25 @@ class TaskAnalysisTests(unittest.TestCase):
         analysis = TaskAnalysis.from_dict(values, allowed_models={"anthropic/claude-sonnet-4-6", "openai/gpt-5.4", "openai/gpt-5.3-codex"})
         self.assertEqual("", analysis.scope)
         self.assertEqual("ready", analysis.initial_status)
+
+    def test_priority_reason_and_unfinished_state_are_explicit(self):
+        analysis = TaskAnalysis.from_dict(
+            valid_analysis(),
+            allowed_models={"anthropic/claude-sonnet-4-6", "openai/gpt-5.4", "openai/gpt-5.3-codex"},
+        )
+        self.assertEqual("unfinished", analysis.completion_state)
+        self.assertIn("Security impact", analysis.priority_reason)
+        self.assertEqual("unfinished", analysis.to_dict()["completion_state"])
+        self.assertIn("优先级理由", analysis.to_markdown())
+
+    def test_priority_reason_is_required(self):
+        values = valid_analysis()
+        values["priority_reason"] = ""
+        with self.assertRaises(TaskAnalysisError):
+            TaskAnalysis.from_dict(
+                values,
+                allowed_models={"anthropic/claude-sonnet-4-6", "openai/gpt-5.4", "openai/gpt-5.3-codex"},
+            )
 
     def test_clarification_maps_to_draft(self):
         values = valid_analysis()

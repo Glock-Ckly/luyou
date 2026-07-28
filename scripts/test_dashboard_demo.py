@@ -62,8 +62,13 @@ class DashboardDemoTests(unittest.TestCase):
             "/api/tasks/from-analysis",
             "model_router_api_token",
             "retryWithToken",
+            "priority_reason",
+            "task-completion-group",
         ):
             self.assertIn(marker, page + script)
+        styles = (ROOT / "dashboard" / "assets" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn(".task-global-search input", styles)
+        self.assertIn("color: #382821; background: #fff", styles)
 
     def test_pages_are_readable_and_use_live_runtime_data(self):
         expected_titles = {
