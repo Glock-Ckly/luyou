@@ -28,4 +28,8 @@ Verification remains the only authority that can declare acceptance success.
 ## Follow-up
 
 Implement the minimum domain, ports, adapters, application service, HTTP routes and UI required to
-turn these failures Green. Record the Red commit hash in a pushed follow-up audit update.
+turn these failures Green.
+
+## Commit
+
+Red contract commit: `7cefb98612a82efb831e253bf326003aba614836`.
