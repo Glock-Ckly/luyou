@@ -1,7 +1,7 @@
 # AI Model Router DeepSeek 自动任务规划执行流程
 
-> 日期：2026-07-28  
-> 仓库：`C:\Codex\luyou`  
+> 日期：2026-07-28
+> 仓库：`C:\Codex\luyou`
 > 流程：Specification -> DDD -> Contract -> Red -> Red-only Commit/Push -> Minimal Green -> Regression -> Secondary Audit -> Commit/Push
 
 ## 1. 目标
