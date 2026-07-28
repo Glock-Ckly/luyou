@@ -47,6 +47,24 @@ class DashboardDemoTests(unittest.TestCase):
         self.assertIn("'PUT'", script)
         self.assertIn("method: 'DELETE'", script)
 
+    def test_task_workbench_has_goal_first_planning_and_connection_recovery(self):
+        page = (ROOT / "dashboard" / "tasks.html").read_text(encoding="utf-8")
+        script = (ROOT / "dashboard" / "assets" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("<header data-header>", page)
+        for marker in (
+            "task-goal",
+            "task-analyze",
+            "task-analysis-preview",
+            "task-subtasks",
+            "task-model-recommendations",
+            "task-plan-link",
+            "/api/tasks/analyze",
+            "/api/tasks/from-analysis",
+            "model_router_api_token",
+            "retryWithToken",
+        ):
+            self.assertIn(marker, page + script)
+
     def test_pages_are_readable_and_use_live_runtime_data(self):
         expected_titles = {
             "index.html": "系统总览",
