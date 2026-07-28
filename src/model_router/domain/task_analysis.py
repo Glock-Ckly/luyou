@@ -232,6 +232,7 @@ class TaskAnalysis:
     task_type: str
     complexity: str
     priority: str
+    priority_reason: str
     technology_stack: tuple[str, ...]
     scope: str
     coverage_target_percent: int
@@ -291,6 +292,9 @@ class TaskAnalysis:
             task_type=_choice(values.get("task_type"), "task_type", TASK_TYPES),
             complexity=_choice(values.get("complexity"), "complexity", COMPLEXITIES),
             priority=_choice(values.get("priority"), "priority", TASK_PRIORITIES),
+            priority_reason=_required_text(
+                values.get("priority_reason"), "priority_reason", maximum=1000
+            ),
             technology_stack=_strings(
                 values.get("technology_stack"), "technology_stack", minimum=1, maximum=12
             ),
@@ -330,6 +334,10 @@ class TaskAnalysis:
     def initial_status(self) -> str:
         return "draft" if self.needs_clarification else "ready"
 
+    @property
+    def completion_state(self) -> str:
+        return "unfinished"
+
     def _canonical_data(self) -> dict:
         return {
             "goal": self.goal,
@@ -339,6 +347,7 @@ class TaskAnalysis:
             "task_type": self.task_type,
             "complexity": self.complexity,
             "priority": self.priority,
+            "priority_reason": self.priority_reason,
             "technology_stack": list(self.technology_stack),
             "scope": self.scope,
             "coverage_target_percent": self.coverage_target_percent,
@@ -378,6 +387,7 @@ class TaskAnalysis:
                 "analysis_id": self.analysis_id,
                 "content_hash": self.content_hash,
                 "initial_status": self.initial_status,
+                "completion_state": self.completion_state,
                 "task": self.to_task_payload(),
                 "checklist_markdown": self.to_markdown(),
             }
@@ -405,7 +415,9 @@ class TaskAnalysis:
             f"- 类型: `{self.task_type}`",
             f"- 复杂度: `{self.complexity}`",
             f"- 优先级: `{self.priority}`",
+            f"- 优先级理由: {self.priority_reason}",
             f"- 初始状态: `{self.initial_status}`",
+            "- 完成性: `unfinished`（未完成）",
             f"- 目标通过率: `{self.coverage_target_percent}%`",
             f"- 标签: {', '.join(f'`{tag}`' for tag in self.tags)}",
             "",

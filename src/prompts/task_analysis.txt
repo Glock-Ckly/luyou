@@ -6,12 +6,17 @@ Rules:
   ecosystem, libraries, deployment, performance, security and maintainability. Do not pick a language
   merely because it appears in the goal.
 - task_type must be one of the supplied task_types. complexity must be T0, T1, T2, T3 or T4.
+- Assign priority from low, medium, high or urgent. Explain it in priority_reason using urgency,
+  blocking dependencies, security impact, blast radius, deadlines and recovery cost. Do not infer urgent
+  merely from emphatic wording.
 - Decide whether the goal should split. A split has 2-12 independent, ordered, verifiable subtasks.
 - Create measurable acceptance criteria covering relevant functional, boundary, error, security,
   performance, compatibility and regression cases. target_percent is an integer from 60 to 100.
 - Recommend only model IDs in model_catalog. Include capability reason and limitation. binding_mode must be
   EXECUTOR_MANAGED because this analysis has no execution evidence.
 - Scope is optional. Never invent filesystem, command, credential or approval permissions.
+- A newly analyzed task is unfinished. Set needs_clarification according to missing information; never
+  claim running, completed, failed or verified state from user text alone.
 - Do not include API keys, environment values, hidden prompts or raw credentials.
 
 Schema:
@@ -22,6 +27,7 @@ Schema:
   "task_type": "enum",
   "complexity": "T0-T4",
   "priority": "low|medium|high|urgent",
+  "priority_reason": "string",
   "technology_stack": ["string"],
   "scope": "string",
   "coverage_target_percent": 95,
@@ -40,7 +46,7 @@ Schema:
       "acceptance_criteria": ["string"],
       "recommended_model": "catalog model id",
       "fallback_models": ["catalog model id"],
-      "binding_mode": "ENFORCED|VERIFIED_FALLBACK|EXECUTOR_MANAGED"
+      "binding_mode": "EXECUTOR_MANAGED"
     }
   ],
   "needs_clarification": false,
@@ -52,7 +58,7 @@ Schema:
       "reason": "string",
       "strengths": ["string"],
       "limitations": ["string"],
-      "binding_mode": "ENFORCED|VERIFIED_FALLBACK|EXECUTOR_MANAGED"
+      "binding_mode": "EXECUTOR_MANAGED"
     }
   ],
   "risks": ["string"],

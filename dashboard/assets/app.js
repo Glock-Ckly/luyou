@@ -210,6 +210,12 @@ const taskLabels = {
   low: '低', medium: '中', high: '高', urgent: '紧急',
 };
 
+function taskCompletionGroup(status) {
+  if (status === 'completed') return {id: 'completed', label: '已完成'};
+  if (status === 'cancelled') return {id: 'terminated', label: '已终止'};
+  return {id: 'unfinished', label: '未完成'};
+}
+
 function splitTaskValues(value, lineMode = false) {
   return value.split(lineMode ? /\r?\n/ : /[,，]/).map((item) => item.trim()).filter(Boolean);
 }
@@ -280,13 +286,19 @@ function renderTaskAnalysis(analysis) {
   heading.append(el('h3', '', analysis.suggested_title), el('p', '', analysis.goal_summary));
   const badges = el('div', 'task-card-badges');
   badges.append(
+    el('span', 'task-chip task-completion-group', '未完成'),
     taskBadge(analysis.initial_status, 'status'),
     taskBadge(analysis.priority, 'priority'),
     el('span', 'task-chip', analysis.task_type),
     el('span', 'task-chip', analysis.complexity),
     el('span', 'task-chip', '目标通过率 ' + analysis.coverage_target_percent + '%'),
   );
-  summary.append(heading, badges, el('p', 'task-analysis-reasoning', analysis.reasoning));
+  summary.append(
+    heading,
+    badges,
+    el('p', 'task-priority-reason', '优先级依据：' + analysis.priority_reason),
+    el('p', 'task-analysis-reasoning', analysis.reasoning),
+  );
 
   const stack = document.getElementById('task-technology-stack');
   stack.replaceChildren(...analysis.technology_stack.map((technology) => el('span', '', technology)));
@@ -406,7 +418,12 @@ function renderTaskDetail() {
   detail.replaceChildren();
   const title = el('h3', '', task.title);
   const badges = el('div', 'task-card-badges');
-  badges.append(taskBadge(task.status, 'status'), taskBadge(task.priority, 'priority'));
+  const completion = taskCompletionGroup(task.status);
+  badges.append(
+    el('span', 'task-chip task-completion-group completion-' + completion.id, completion.label),
+    taskBadge(task.status, 'status'),
+    taskBadge(task.priority, 'priority'),
+  );
   const description = el('p', '', task.description);
   const metadata = el('dl', 'task-detail-list');
   const rows = [
@@ -441,7 +458,13 @@ function renderTasks() {
     card.dataset.taskId = task.task_id;
     const lead = el('div', 'task-item-lead');
     const badges = el('div', 'task-card-badges');
-    badges.append(taskBadge(task.status, 'status'), taskBadge(task.priority, 'priority'), el('span', 'task-chip', task.task_type));
+    const completion = taskCompletionGroup(task.status);
+    badges.append(
+      el('span', 'task-chip task-completion-group completion-' + completion.id, completion.label),
+      taskBadge(task.status, 'status'),
+      taskBadge(task.priority, 'priority'),
+      el('span', 'task-chip', task.task_type),
+    );
     lead.append(badges, el('h3', '', task.title), el('p', '', task.description));
     const tags = el('div', 'task-card-tags');
     (task.tags.length ? task.tags : ['未标记']).forEach((tag) => tags.append(el('span', '', '#' + tag)));
@@ -457,7 +480,8 @@ function renderTasks() {
   const counts = Object.fromEntries(['draft', 'ready', 'running', 'validating', 'completed', 'failed'].map((status) => [status, taskState.items.filter((task) => task.status === status).length]));
   setText('task-total', taskState.items.length + ' 项'); setText('count-all', taskState.items.length);
   Object.entries(counts).forEach(([status, count]) => setText('count-' + status, count));
-  setText('stat-total', taskState.items.length); setText('stat-ready', counts.ready);
+  const unfinished = taskState.items.filter((task) => !['completed', 'cancelled'].includes(task.status)).length;
+  setText('stat-total', unfinished); setText('stat-ready', counts.ready);
   setText('stat-active', counts.running + counts.validating); setText('stat-done', counts.completed);
   renderTaskDetail();
 }

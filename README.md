@@ -15,7 +15,8 @@
 - Bearer 鉴权、CORS allowlist、工作目录限制和内存限流。
 - Trace ID、Attempt 事件、请求指标和可靠性故障模拟。
 - `ExecutionTask` 聚合、SQLite 持久化、乐观锁和原子删除。
-- DeepSeek 自动技术栈、任务类型、复杂度、标签、通过率、子任务和模型建议分析。
+- DeepSeek 自动技术栈、任务类型、复杂度、优先级及理由、标签、通过率、子任务和模型建议分析。
+- 新分析只会进入 `draft` 或 `ready`，并统一归为“未完成”；完成状态必须由后续执行与验收证据驱动。
 - 后端确定性 Markdown 清单、SHA-256 内容哈希、确认后创建与失败补偿。
 - 六页原生 HTML/CSS/JavaScript 工作台。
 - Dockerfile、Compose、可复用 Skills 与边界 Agents。
@@ -92,12 +93,12 @@ python -m pip install -e .
 
 ### 2. 配置
 
-Provider 配置参考 [`config/relay.env.example`](config/relay.env.example) 和 [`config/relay_models.yaml`](config/relay_models.yaml)。运行时配置参考 [`config/runtime.env.example`](config/runtime.env.example)。不要提交真实密钥。
+Provider 配置参考 [`config/relay.env.example`](config/relay.env.example) 和 [`config/relay_models.yaml`](config/relay_models.yaml)。运行时配置参考 [`config/runtime.env.example`](config/runtime.env.example)。不要提交真实密钥；已在聊天、日志或提交中暴露的密钥必须轮换。
 
 常用环境变量：
 
 ```powershell
-$env:MODEL_ROUTER_API_TOKEN = "replace-with-a-long-random-token"
+$env:MODEL_ROUTER_API_TOKEN = "" # 本机回环地址默认关闭 Bearer 锁
 $env:MODEL_ROUTER_PORT = "1785"
 $env:MODEL_ROUTER_ALLOWED_ORIGINS = "http://127.0.0.1:1785,http://localhost:1785"
 $env:MODEL_ROUTER_ALLOWED_WORKDIRS = "C:\Codex"
@@ -163,7 +164,7 @@ curl.exe http://127.0.0.1:1785/health
 | PUT | `/api/tasks/<task_id>` | 更新并校验版本和状态跃迁 |
 | DELETE | `/api/tasks/<task_id>` | 原子删除；运行中或验证中返回 409 |
 
-配置 `MODEL_ROUTER_API_TOKEN` 后，除 `/health` 和静态页面外的 API 需要：
+`MODEL_ROUTER_API_TOKEN` 是 Dashboard API 的可选 Bearer 访问令牌，不是模型 Provider 密钥。本机 `127.0.0.1` Demo 可保持空值以关闭此锁；共享主机或非回环监听必须配置独立的高强度随机令牌。配置后，除 `/health` 和静态页面外的 API 需要：
 
 ```text
 Authorization: Bearer <token>
@@ -193,7 +194,7 @@ Specification -> DDD Boundary -> Contract -> Red Tests
 
 当前确定性基线：
 
-- `python -m unittest discover -s tests -v`：80/80 通过（2026-07-28）
+- `python -m unittest discover -s tests -v`：82/82 通过（2026-07-28）
 - `python scripts/test_dashboard_demo.py`：10/10 通过（2026-07-28）
 - `node --check dashboard/assets/app.js`：通过
 - `git diff --check`：通过
@@ -248,6 +249,7 @@ docker compose up --build
 - OpenSpec 风格规格已落地，但未采用 OpenSpec CLI。
 - Codex 当前无法证明强制使用推荐模型，只能标记为 `EXECUTOR_MANAGED`。
 - DeepSeek 分析与 Task 创建不等于子任务已持久化、模型已调用或交付物已验证。
+- DeepSeek 可以建议优先级并解释依据，但不能仅凭用户描述把新任务标记为已完成。
 - Provider 返回文本不代表仓库修改或验收通过。
 - `routed`、`queued`、`answered`、`executed`、`verified`、`delivered` 是不同状态。
 - 只有 VerificationReport 为 PASS，未来 ExecutionJob 才能进入 SUCCEEDED。

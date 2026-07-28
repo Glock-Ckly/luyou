@@ -12,7 +12,7 @@
 
 | 检查 | 2026-07-28 结果 |
 |---|---|
-| 离线 unit/contract/integration | 80/80 通过 |
+| 离线 unit/contract/integration | 82/82 通过 |
 | 六页 Demo 检查 | 10/10 通过 |
 | Browser UI | Goal-first 任务页 1440x1000 与 390x844 Playwright 走查通过；其余页面沿用历史证据 |
 | Smoke Relay | 15/15 通过 |
@@ -42,6 +42,7 @@
 16. OpenSpec 风格执行闭环规格索引与 ADR-009 至 ADR-014
 17. DeepSeek Goal-first 分析、技术栈/复杂度/通过率/标签、子任务和模型建议
 18. 确定性 Markdown、确认创建、Artifact 补偿、鉴权恢复与嵌套式任务 UI
+19. DeepSeek 优先级理由、初始“未完成”分组、本机无 Token 启动与任务页浅色输入修复
 
 ## 已知问题与建议
 
@@ -52,5 +53,7 @@
 5. Agent 仅为工程角色：若引入 Runtime Agent，必须先实现 Max Steps、Max Cost、Timeout、Skill 白名单和权限边界。
 6. Planning 已生成子任务清单但尚未形成持久化 ExecutionJob/DAG：下一步建立 Snapshot、PromptPackage、模型绑定证据、执行凭证、验证与受限修复闭环。
 7. 路由输出只是候选决策；Codex 路径没有强制绑定推荐模型，Cursor queue 只表示排队，不表示完成。
+8. `MODEL_ROUTER_API_TOKEN` 只保护 Router API：本机回环 Demo 默认留空，共享或非回环部署必须配置；Provider 密钥只从环境变量读取且不得提交。
+9. DeepSeek 可以判定优先级与初始 `draft`/`ready`，但 Task 完成必须有执行和 VerificationReport 证据。
 
 完整矩阵见 docs/checklist-matrix.md，阶段证据见 docs/assessment/。
